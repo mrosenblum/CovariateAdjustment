@@ -1,0 +1,201 @@
+---
+title: "Covariate Adjustment for Ordinal Outcomes in Clinical Trials"
+author: "Bingkai Wang, Josh Betz, and Michael Rosenblum"
+date: "`r format(Sys.time(), '%Y-%m-%d %I:%M')`"
+output:
+  html_document:
+    toc: true # table of content true
+    # toc_depth: 3
+    number_sections: true
+    theme: united
+    highlight: tango
+    # css: my.css   # For custom CSS - In same folder
+# bibliography: bibliography.bib # For Bibliography - In same folder
+# csl: biomed-central.csl # For citation style - In same folder
+---
+
+# Using This Tutorial
+
+This tutorial is to assist analysts in understanding and implementing analyses for ordinal outcomes in randomized controlled trials using actual data from clinical trials. The data in this tutorial come from the SMART-AV trial, a three-arm parallel group trial assessing different treatment strategies for cardiac resynchronization therapy in patients with moderate to severe heart failure.
+
+In the first section, the trial setting is discussed, laying out the design of the trial, the data collected at baseline and at its follow-up visits. For those new to R, a quick orientation to using R is given, along with the software utilized in this tutorial. The format of the data required for analysis is illustrated.
+
+In the second section, we discuss the potential quantities one might want to estimate from a randomized trial. The description of each estimand is given, along with methodologic considerations, and further references for study.
+
+In the third section, we provide worked examples of analyzing ordinal trial outcomes, including examples of covariate adjustment, which can provide improved precision and mitigate residual imbalance in baseline characteristics between arms of a randomized trial.
+
+The appendix contains a list of abbreviations used, both medical and statistical, as well as further resources for using R.
+
+
+# Example Data: SMART-AV Trial
+
+Cardiac Resynchronization Therapy (CRT) has the potential to reduce hospitalizations, prolong survival, and provide better symptom management and quality of life compared to medical therapy alone in patients with severe left ventricular (LV) dysfunction, medically-refractive heart failure (HF) symptoms, and intraventricular conduction delay. **citation**
+
+However, there is variation in the degree of benefit from CRT among patients, and suboptimal arterioventricular (AV) delay timing may be one possible contributor to varying clinical outcomes. At the outset of the SMART-AV trial, previous studies varied in their approach to programming of the AV delay, and the goal of the trial was to assess three potential strategies for AV delay optimization. **citation**
+
+The design of the trial can be found [here](https://doi.org/10.1111/j.1540-8159.2009.02581.x), and the primary results can be found [here](https://doi.org/10.1161/CIRCULATIONAHA.110.992552).
+
+
+## Description of the Trial
+
+The trial is a parallel 3-arm trial, where patients were randomized 1:1:1 using block randomization stratified by study site. Participants were assessed at two subsequent visits: 3-months and 6-months post-randomization.
+
+### Baseline Covariates
+
+Demographic and clinical covariates assessed at baseline include:
+
+  - Demographics:
+    - `age` - Age: age in years
+    - `gender` - Sex: biological sex
+  - Anthropometry:
+    - `height` - Height (cm)
+    - `weight` - Weight (kg)
+    - `bmi` - Body Mass Index (BMI, in kg/m^2^)
+  - Vitals:
+    - `bpsys` - Systolic Blood Pressure (SBP, in mm Hg)
+    - `bpdia` - Diastolic Blood Pressure (DBP, in mm Hg)
+    - `hrrest` - Resting heart rate (bpm)
+  - Laboratory Values
+    - `bun` - Blood Urea Nitrogen (mg/dL)
+    - `creat` - Creatinine (mg/dL)
+  - Medications at Enrollment:
+    - `ace` - Angiotensin Converting Enzyme (ACE) Inhibitors
+    - `arbs` - Angiotensin Receptor Blockers (ARBs)
+    - `diuretic` - Diuretics
+    - `ccb` - Calcium Channel Blockers
+    - `bb` -  $\beta$-Blockers
+    - `digoxin` - Digoxin
+    - `spiro` - Spirolactone
+  - Clinical Characteristics and Comorbidities
+    - `sys_hypert` - Systemic hypertension
+    - `pulm_hyptert` - Pulmonary hypertension
+    - `ischemic` - Ischemic origin of LV dysfunction
+    - `diabetes` - Diabetes
+    - `lbbb` - Left Bundle Branch Block
+    - `QRS` - QRS wave duration by Electrocardiogram (ms)
+    - `paf` - Paroxysmal Atrial Fibrillation
+    - `renal` - Renal Disease
+    - `heart_valve` - Heart valve replacement
+    - `copd` - Chronic Obstructive Pulmonary Disease (COPD)
+    - `cabg` - Coronary Artery Bypass Graft (CABG)
+
+Continuous measures are presented with their units of measure in parenthesis. All other variables are categorical.
+
+### Outcomes
+
+The following outcome measures were obtained at baseline, as well as 3- and 6-month post-randomization visits:
+
+  - `lvesv` - Left Ventricular End Systolic Volume (LVESV, in mL)
+  - `lvedv` - Left Ventricular End Diastolic Volume (LVEDV, in mL)
+  - `lvef` - Left Ventricular Ejection Fraction (%)
+  - `nyha` - New York Heart Association (NYHA) class for Heart Failure
+  - `qol_score` - Quality of Life
+  - `walk_test` - Walking Test
+  
+All outcomes except NYHA class are continuous measurements. The NYHA class is an ordinal scale with four potential levels **citation**:
+
+  - Class I:
+    - No limitation of physical activity, comfortable at rest
+    - Ordinary physical activity does not cause undue fatigue, palpitation, or shortness of breath
+  - Class II:
+    - Slight limitation of physical activity, comfortable at rest
+    - Ordinary physical activity causes fatigue, palpitation, or shortness of breath
+  - Class III:
+    - Marked limitation of physical activity, comfortable at rest
+    - Less than ordinary physical activity causes fatigue, palpitation, or shortness of breath
+  - Class IV:
+    - No physical activity without discomfort
+    - Symptoms of HF at rest
+    - Any physical acticity results in increased discomfort
+
+
+While the primary outcome of the SMART-AV trial was change from baseline in the left ventricular end systolic volume (LVESV), a continuous outcome, we will use NYHA heart failure classification as the outcome of interest. 
+
+
+
+### Using R and Its Software Packages
+
+[R](https://www.r-project.org/) is a free and open source language and statistical computing environment. [Rstudio](https://rstudio.com/) is a powerful development environment for using the R language. The ability of R can be extended by downloading software packages from the [Comprehensive R Archival Network (CRAN)](https://cran.r-project.org/).
+
+  - [dplyr](https://dplyr.tidyverse.org/) and [tidyr](https://tidyr.tidyverse.org/) - Packages for manipulating data, including selecting rows and columns, generating new variables, arranging and reshaping data, and more.
+  - [haven](https://haven.tidyverse.org/) - Packages for reading in different data formats, such as comma separated values (.csv), SAS (.sas7bdat), SPSS (.sav), Stata (.dta), and xport (.xpt) files.
+  - [drord](https://cran.r-project.org/web/packages/drord/drord.pdf) - Doubly-Robust Estimators for Ordinal Outcomes
+
+In R, these packages can be installed from the Comprehensive R Archival Network, or CRAN, using the `install.packages()` command. In Rstudio IDE, there is a 'Packages' tab that allows users to see which packages are installed, which are currently in use, and update packages using a graphical interface.
+
+For example, the `drord` package can be installed as follows:
+
+```{r install_drord, eval = FALSE}
+install.packages(pkgs = "drord")
+```
+
+R will automatically install the package and any other package 'dependencies' - other packages required for its use.
+
+
+### Reading in Data
+
+```{r}
+input.dir <- paste0("S:", "projects", "SMART-AV", "data", "160909")
+input.file <- "w_SMART-AV_v0.0_2016-09-09.dta"
+input.path <- file.path(input.dir, input.file)
+```
+
+The resulting file path is `r input.path` - the file name includes a date stamp to indicate a version of the original primary data (2016-09-09), and the version of the code used to produce the file (v0.0).
+
+We can read in the data using the `haven::read_dta()` function.
+
+```{r, eval = FALSE}
+smartav <- haven::read_dta(file = input.path)
+```
+
+### Data Structure
+
+The original data is in *wide* format: each row contains all observations pertaining to an individual across multiple columns. Data can be reshaped to long format using one of many potential functions: `stats::reshape`, `tidyr::pivot_longer`, or others. There are several worked examples of `dplyr` and `tidyr` in action on the web at the [Tidyverse site](https://www.tidyverse.org/).
+
+# Estimands: Targets of Inference
+
+Note that all analyses follow the intention-to-treat (ITT) principle: all participants are analyzed according to how they were randomized, irrespective of what treatment was received during the trial.
+
+## DIM: Difference in Mean Outcomes
+
+## LOR: Log Odds Ratio
+
+# Estimating the Effect of a Treatment
+
+## Unadjusted Difference in Means
+
+## Unadjusted Log Odds Ratio
+
+## Adjusted Log Odds Ratio
+
+# Appendix
+
+## Abbreviations
+
+  - Medical
+    - `AV`: Atrio-ventricular
+    - `CRT`: Cardiac Resynchronization Therapy
+    - `HF`: Heart Failure
+    - `NYHA`: New York Heart Association
+  - Statistical
+    - `DIM`: Difference in Means
+    - `DR`: Doubly Robust
+    - `IID`: Independent and Identically Distributed
+    - `ITT`: Intention to Treat
+    - `LOR`: Log Odds Ratio
+    - `MW`: Mann-Whitney
+
+## Software in Use
+
+```{r}
+sessionInfo()
+```
+
+
+## Resources for Using R
+
+  - [RStudio Cheat Sheets](https://rstudio.com/resources/cheatsheets/)
+  - [Rstudio Educational Resources](https://education.rstudio.com/)
+  - [R for Data Science](https://r4ds.had.co.nz/)
+  - [R Project: An Introduction to R](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+  
