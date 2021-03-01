@@ -1,0 +1,125 @@
+---
+title: "A Tutorial for Covariate Adjustment for Ordinal Outcomes in Clinical Trials"
+author: ''
+date: "`r format(Sys.time(), '%Y-%m-%d %I:%M')`"
+output:
+  html_document:
+    toc: true # table of content true
+    # toc_depth: 3
+    number_sections: true
+    theme: united
+    highlight: tango
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This tutorial introduces how to perform covariate-adjusted analysis for ordinal outcomes in randomized clinical trials. 
+
+In the second section, we provide an example data.
+
+In Section 3, we give a few estimands for ordinal outcomes.
+
+In Section 4, we introduce how to perform covariate-adjusted analysis based on description of [@benkeser2020] in `R`.
+
+Before we start, we load the following packages.
+
+```{r, message=F}
+library(tidyverse) # for data cleaning and manipulation
+if (!require("drord")) devtools::install_github("benkeser/drord") # for covariate-adjusted analysis for ordinal outcomes
+```
+
+# Example data
+
+The ``Treatment for Adolescents with Depression Study" (TADS) is a phase 3, four-arm, randomized trial completed in 2003 [@TADS]. The goal was to evaluate cognitive-behavioral therapy (CBT) and Fluoxetine (FLX), each alone and combined (CMB), for treating major depressive disorder  in adolescents (age 12--17). Participants were randomized to four arms: FLX only (109 participants, 15\% missing outcomes), CBT only (111 participants, 29\% missing outcomes), combined (CMB, 107 participants, 16\% missing outcomes), and placebo (112 participants, 20\% missing outcomes). The co-primary outcomes were the change in Children's Depression Rating Scale-Revised (CDRS-R) score and improvement of  Clinical Global Impressions (CGI) severity rating score at 12 weeks. 
+
+We focus on the latter outcome (CGI-improvement), which is a 7-point ordinal scale with explanation:
+
+> 1=very much improved since the initiation of treatment; 2=much improved; 3=minimally improved; 4=no change from baseline (the initiation of treatment); 5=minimally worse; 6= much worse; 7=very much worse since the initiation of treatment  [@busner2007clinical].
+
+We adjust for the following baseline variables: age, gender, CDRS-R score, CGI severity rating score, Children's Global Assessment Scale score (CGAS), Reynolds Adolescent Depression Scale total score (RADS), suicide ideation score, current major depressive episode duration, and comorbidity (indicator of any other psychiatric disorder except dysthymia). 
+
+_Note: The above description is reproduced from [@wang2019analysis]. The data for this example are not publicly available, but they can be requested from the NIDA databases at https://datashare.nida.nih.gov. _
+
+```{r, eval=F}
+load("data/TADS.rdata")
+head(tad)
+```
+
+```{r, echo = F}
+load("~/Dropbox/JHU/Clinical-trial/github_code/CovariateAdjustment/Data_Preprocessing_and_Analysis/TADS.rdata")
+tad <- tad[,-c(6,14,15)]
+head(tad)
+```
+
+In the data frame `tad`, the outcome is 
+
+  - `CGI_improvement`: a 7-point ordinal scale.
+  
+The treatment allocation variable is 
+
+  - `treatment`: cognitive-behavioral therapy alone (CBT), Fluoxetine alone (FLX),   cognitive-behavioral therapy and Fluoxetine combined (CMB) and placebo (PBO).
+  
+The baseline variables are `age`, `gender`, `CDRS_baseline`, `CGI`, `CGAS`, `RADS`, `suicide_ideation`, `depression_episode` and `comorbidity`.
+
+We perform the following preprocessing steps. First, since there is only 1 individual with CGI_improvement being 7, we remove this data vector. Otherwise, it will cause infinite estimated parameters in the model fitting below. Second, we reverse the scale of the outcome such that larger outcome indicates better result, which is consistent with our assumption below. Third, in this tutorial, we compare the treatment effect between CBT, FLX, CMB versus PBO for demonstration. 
+
+```{r}
+tad <- filter(tad, CGI_improvement <= 6)
+tad$CGI_improvement <- 8 - tad$CGI_improvement
+tad$treatment <- as.numeric(tad$treatment != "PBO")
+```
+
+# Estimands
+
+We consider three estimands, which are Difference in means (DIM), Mann-Whitney (MW) estimand and Log-odds ratio (LOR). Let $Y$ denote the ordinal outcome taking values in $\{1, \dots, K\}$ and $A$ be the binary treatment indicator. We suppose that $Y$ is encoded in a way that larger $Y$ indicating better outcomes.
+
+- Difference in means (DIM): $\frac{1}{K}\sum_{j=1}^K\{P(Y = j | A =1) - P(Y=j|A=0)\}$, which is the expected difference of the average outcome between treatment arms.
+
+- Mann-Whitney (MW) estimand: $P(Y_1 > Y_2 |A_1 = 1, A_2 = 0) + \frac{1}{2} P(Y_1 = Y_2 |A_1 = 1, A_2 = 0)$, where $(A_1, Y_1)$, $(A_2, Y_2)$ are independent treatment-outcome pairs. It is the probability that a random person in the treatment arm has better outcome than a random person in the control arm, with ties broken at random. 
+
+- Log-odds ratio (LOR): $\arg \min_{c \in \mathbb{R}} \sum_{j=1}^{K-1} \{\textrm{logit} P(Y\le j |A=1) - \textrm{logit} P(Y\le j |A=0) - c\}^2$, which is the average of the cumulative log-odds ratios over levels 1 to $K-1$ of the outcome.
+
+For a detailed explanation of the three estimands, please see Section 3.2 and Appendix A of [@benkeser2020].
+
+# Covariate-adjusted Estimators
+
+For all of the three estimands, we fit the following working linear regression model for $a = 0,1$ and $j =1, \dots, K-1$:
+$$\textrm{logit} P(Y \le j | A=a, X=x) = \alpha_j(a) + \beta(a)^\top x, \qquad \textrm{such that}\ a_1(a) \le \dots \le a_{K-1}(a).$$
+
+We obtain $\widehat\alpha_j(a)$ and $\widehat\beta(a)$ by maximum likelihood estimation and construct $\widehat{P}(Y\le j|A=a) = \sum_{i=1}^n\textrm{expit}(\widehat\alpha_j(a) + \widehat\beta(a)^\top X_i)$, which is an estimate of the cumulative distribution function $P(Y\le j|A=a)$. 
+
+Since each of the three estimands is a function of $P(Y\le j|A=a), j = 1,\dots, K-1; a= 0,1$, we replace $P(Y\le j|A=a)$ by $\widehat{P}(Y\le j|A=a)$ in the definition of estimands and get the plug-in estimators. According to [@benkeser2020], these estimators are robust to arbitrary misspecification of the working regression model, i.e., consistent and asymptotically normal even when the working regression model is not correct (e.g. missing prognostic baseline variables or the true relationship is non-linear).
+
+An more elaborate way to estimate these estimands involves fitting a propensity score and use it as the inverse weight when fitting the outcome regression model. For details, please see Appendix A of [@benkeser2020]. 
+
+We use the `drord` package to calculate the estimands. `drord` has advantages on its simple syntax, ability to handle missing outcomes and incorporation of propensity scores. The code and example results are given below.
+
+```{r}
+adjusted_est <- drord(out = tad$CGI_improvement, 
+      covar = tad[, c("age", "gender", "CDRS_baseline", "CGI", "CGAS", "RADS", "suicide_ideation", "depression_episode", "comorbidity")],
+      treat = tad$treatment)
+adjusted_est
+```
+
+To evaluate the variance reduction due to covariate adjustment, we also calculate the unadjusted estimators, i.e. estimators not involving baseline information and give its estimate and confidence intervals. The variance reduction is calculated by one minus the variance ratio of the adjusted estimator over the unadjusted estimator, which can be translated into proportional sample size reduciton.
+
+```{r, warning=F}
+unadjusted_est <- drord(out = tad$CGI_improvement, 
+      covar = matrix(1, nrow = length(tad$CGI), ncol = 1),
+      treat = tad$treatment)
+unadjusted_est
+
+# variance reduction
+var_reduction <- matrix(NA, ncol = 1, nrow = 3, dimnames = list(c("mann_whitney", "log_odds", "weighted_mean"), c("Var_reduction")))
+var_reduction["mann_whitney",1] <- 1 - (adjusted_est$mann_whitney$ci$wald[2] - adjusted_est$mann_whitney$ci$wald[1])^2 / (unadjusted_est$mann_whitney$ci$wald[2] - unadjusted_est$mann_whitney$ci$wald[1])^2
+var_reduction["log_odds",1] <- 1 - (adjusted_est$log_odds$ci$wald[3,2] - adjusted_est$log_odds$ci$wald[3,1])^2 / (unadjusted_est$log_odds$ci$wald[3,2] - unadjusted_est$log_odds$ci$wald[3,1])^2
+var_reduction["weighted_mean",1] <- 1 - (adjusted_est$weighted_mean$ci$wald[3,2] - adjusted_est$weighted_mean$ci$wald[3,1])^2 / (unadjusted_est$weighted_mean$ci$wald[3,2] - unadjusted_est$weighted_mean$ci$wald[3,1])^2
+var_reduction
+```
+
+# References

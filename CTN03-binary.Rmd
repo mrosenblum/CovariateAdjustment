@@ -1,0 +1,257 @@
+---
+title: "A Tutorial for Covariate Adjustment for Binary Outcomes in Clinical Trials"
+author: ''
+date: "`r format(Sys.time(), '%Y-%m-%d %I:%M')`"
+output:
+  html_document:
+    toc: true # table of content true
+    # toc_depth: 3
+    number_sections: true
+    theme: united
+    highlight: tango
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This tutorial intoduces how to perform covariate-adjusted analysis for binary oucomes in randomized clinical trials. 
+
+In the second section, we provide an example data.
+
+In Section 3, we give a few estimands for binary outcomes.
+
+In Section 4, we introduce two covariate-adjusted estimators and demonstrate how to implement them in `R`.
+
+Before we start, we load the following packages.
+
+```{r, message=F}
+library(tidyverse) # for data cleaning and manipulation
+library(boot) # for bootstrap
+library(devtools) # optional, for sourcing R script from GitHub.
+```
+
+# Example data: Buprenorphine tapering and illicit opioid use  (NIDA-CTN-0003)
+
+The trial of ``Buprenorphine tapering schedule and illicit opioid use''  in the National Drug Abuse Treatment Clinical Trials Network (NIDA-CTN-0003), is a phase-3 randomized trial completed in 2005 [@CTN03]. The goal was to compare the effects of a short or long taper schedule after buprenorphine stabilization of patients with opioid use disorder. Patients were randomized into two arms: 28-day taper (control, 259 patients, 36\% missing outcomes) and 7-day taper (treatment, 252 patients, 21\% missing outcomes), stratified by maintenance dose (3 levels) measured at randomization. The outcome of interest is a binary indicator of whether a participant's urine tested at the end of the study is opioid-free. In addition to the stratification variable, we adjust for the following baseline variables: sex, opioid urine toxicology results, the Adjective Rating Scale for Withdrawal (ARSW), the Clinical Opiate Withdrawal Scale (COWS) and the Visual Analog Scale (VAS).
+
+_Note: The above description is from [@wang2019model]. The data for this example are not publicly available, but they can be requested from the NIDA databases at https://datashare.nida.nih.gov. _
+
+## Reading in data
+
+```{r, eval=FALSE}
+CTN03 <- readRDS("data/CTN03.rds")
+head(CTN03)
+```
+
+```{r, echo=F}
+setwd("~/Dropbox/JHU/clinical-trial/covariate-adaptive/Covariate-adaptive/")
+CTN03 <- readRDS("data/CTN03.rds")[,c(4,2,5,3,6,7,8,9)]
+head(CTN03)
+```
+
+In the data frame `CTN03`, the outcome is 
+
+  - `outcome.OPI`: a binary indicator of whether a participant's urine tested at the end of the study is opioid-free.
+  
+The treatment allocation variable is 
+
+  - `arm`: "7-day taper" (treatment) or "28-day taper" (control).
+  
+The baseline variables are
+
+  - `baseline.OPI`: baseline opioid urine toxicology results,
+  
+  - `sex`: "Female" or "Male",
+  
+  - `COWS`: Clinical Opiate Withdrawal Scale,
+  
+  - `ARSW`: Adjective Rating Scale for Withdrawal,
+  
+  - `VAS`:  Visual Analog Scale,
+  
+  - `strata`: maintenance dose (3 levels, 8, 16 or 24).
+
+## Preprocessing
+
+The preprocessing steps for `CTN03` include:
+
+  - Converting treatment variable `arm` from character to binary numbers (1 for treatment and 0 for control).
+  
+  - Converting the variable type of `strata` from "numerical"" to "character" and removing rows with missing strata.
+  
+  - Imputing all missing baseline values by the median for continuous variables and mode for binary or categorical variables. 
+  
+The corresponding R code is given below:
+
+```{r}
+# covert arm variable to binary numbers
+CTN03$arm <- as.numeric(CTN03$arm == "7-day taper")
+# covert strata variable to factor
+CTN03$strata <- as.factor(CTN03$strata)
+# impute missing baseline values
+CTN03$baseline.OPI[which(is.na(CTN03$baseline.OPI))] <- median(CTN03$baseline.OPI, na.rm = T)
+CTN03$COWS[which(is.na(CTN03$COWS))] <- median(CTN03$COWS, na.rm = T)
+CTN03$ARSW[which(is.na(CTN03$ARSW))] <- median(CTN03$ARSW, na.rm = T)
+CTN03$VAS[which(is.na(CTN03$VAS))] <- median(CTN03$VAS, na.rm = T)
+CTN03 <- CTN03[!is.na(CTN03$strata),]
+```
+
+
+# Estimands
+
+Let $Y$ denote the binary outcome variable, $A$ denote the binary treatment indicator ($A=1$ for treatment and $A=0$ for control) and $X$ denote a vector of baseline variables. The parameters of interest include:
+
+ - The average treatment effect (ATE, or risk difference), defined as $\Delta = P(Y=1|A=1) - P(Y=1|A=0)$.
+ 
+ - Relative risk (RR), defined as $\Gamma = P(Y=1|A=1) / P(Y=1|A=0)$.
+ 
+ - Odds Ratio (OR), defined as $\Theta = \frac{P(Y=1|A=1)}{P(Y=0|A=1)}/\frac{P(Y=1|A=0)}{P(Y=0|A=0)}$
+ 
+# Estimators
+
+Let $n$ be the sample size and $(Y_i, A_i, X_i)$ be the observed data vector for participant $i, i = 1,\dots, n$.
+
+## The standardized logistic regression estimator (assuming no missing outcomes)
+
+### Point estimates
+
+The standardized logistic regression estimator is calculated by first fitting a working model: $$P(Y=1|A,X) = \mbox{expit}(\beta_0 + \beta_A A + \beta_{X}^t X),$$
+where $\mbox{expit}(x) = 1/(1+e^{-x})$, and getting the maximum likelihood estimates $(\widehat{\beta}_0, \widehat{\beta}_A, \widehat{\beta}_{X}^t)^t$. 
+
+We define $\widehat{Y_i}(1) = \mbox{expit}(\widehat\beta_0 + \widehat\beta_A + \widehat\beta_{X}^tX_i)$ and $\widehat{Y_i}(0) = \mbox{expit}(\widehat\beta_0 + \widehat\beta_{X}^tX_i)$. Then the estimators for ATE ($\Delta$), RR ($\Gamma$) and OR ($\Theta$) are given as:
+
+\begin{align}
+\widehat{\Delta}_{logistic} &= \frac{1}{n}\sum_{i=1}^n \{\widehat{Y_i}(1) - \widehat{Y_i}(0)\},\\
+\widehat{\Gamma}_{logistic} &= \frac{\sum_{i=1}^n\widehat{Y_i}(1)}{\sum_{i=1}^n\widehat{Y_i}(0)}, \\
+\widehat{\Theta}_{logistic} &= \frac{\sum_{i=1}^n\widehat{Y_i}(1)}{\sum_{i=1}^n1 - \widehat{Y_i}(1)}/\frac{\sum_{i=1}^n\widehat{Y_i}(0)}{\sum_{i=1}^n1 - \widehat{Y_i}(0)}.
+\end{align}
+
+The following code can be used to calculate $\widehat{\Delta}_{logistic}$, $\widehat{\Gamma}_{logistic}$ and $\widehat{\Theta}_{logistic}$. For a different data set, `outcome.OPI` below should be replaced by the outcome variable name and `CTN03` below should be replaced by the name of the data.
+
+```{r}
+logistic_fit <- glm(outcome.OPI~., data = CTN03, family = "binomial")
+p1 <- predict(logistic_fit, mutate(CTN03, arm = 1), type = "response")
+p0 <- predict(logistic_fit, mutate(CTN03, arm = 0), type = "response")
+c(ATE_logistic = mean(p1) - mean(p0), 
+  RR_logistic = mean(p1) / mean(p0), 
+  OR_logistic = mean(p1) * mean(1-p0) / (1-mean(p1)) / mean(p0))
+```
+
+### Inference under simple randomization
+
+If the clinical trial is done by simple randomization, then the variances and confidence intervals of $\widehat{\Delta}_{logistic}$ and $\widehat{\Gamma}_{logistic}$ can be approximated by bootstrap using the `boot` package in `R`, as demonstrated by the following R code:
+
+```{r}
+logistic <- function(d, i){
+  logistic_fit <- glm(outcome.OPI~., data = d[i,], family = "binomial")
+  p1 <- predict(logistic_fit, mutate(d, arm = 1), type = "response")
+  p0 <- predict(logistic_fit, mutate(d, arm = 0), type = "response")
+  c(mean(p1) - mean(p0), mean(p1)/mean(p0), mean(p1) * mean(1-p0) / (1-mean(p1)) / mean(p0))
+}
+boot_logistic <- boot(CTN03, statistic = logistic, R = 2000)
+output_logistic <- matrix(NA, nrow = 3, ncol = 4, 
+                 dimnames = list(c("ATE_logistic", "RR_logistic", "OR_logistic"), c("est", "var", "CI.lower", "CI.upper")))
+output_logistic[,1] <- boot_logistic$t0
+output_logistic[,2] <- apply(boot_logistic$t, 2, var)
+for(j in 1:3){output_logistic[j, 3:4] <- boot.ci(boot_logistic, type = "bca", index = j)$bca[4:5]}
+round(output_logistic, 3)
+```
+
+To evaluate the variance reduction due to covariate adjustment, we also calculate the unadjusted estimators, i.e. estimators not involving baseline information and give its estimate and confidence intervals. The variance reduction is calculated by one minus the variance ratio of the standardized logistic regression estimator over the unadjusted estimator, which can be translated into proportional sample size reduciton.
+
+```{r}
+unadjusted <- function(d, i){
+  dd <- d[i,]
+  p1 <- dd$outcome.OPI[dd$arm == 1]
+  p0 <- dd$outcome.OPI[dd$arm == 0]
+  c(mean(p1, na.rm = T) - mean(p0, na.rm = T), mean(p1, na.rm = T)/mean(p0, na.rm = T), mean(p1, na.rm = T) * mean(1-p0, na.rm = T) / (1-mean(p1, na.rm = T)) / mean(p0, na.rm = T))
+}
+boot_unadjusted <- boot(CTN03, statistic = unadjusted, R = 2000)
+output_unadjusted <- matrix(NA, nrow = 3, ncol = 4, 
+                 dimnames = list(c("ATE_unadjusted", "RR_unadjusted", "OR_unadjusted"), c("est", "var", "CI.lower", "CI.upper")))
+output_unadjusted[,1] <- boot_unadjusted$t0
+output_unadjusted[,2] <- apply(boot_unadjusted$t, 2, var)
+for(j in 1:3){output_unadjusted[j, 3:4] <- boot.ci(boot_unadjusted, type = "bca", index = j)$bca[4:5]}
+round(output_unadjusted, 3)
+
+var_reduction <- matrix(NA, ncol = 1, nrow = 3, dimnames = list(c("ATE", "RR", "OR"), c("Var_reduction")))
+var_reduction[,1] <- 1 - output_logistic[,2]/output_unadjusted[,2]
+var_reduction
+```
+
+### Inference under stratified or biased-coin randomization
+
+If the clinical trial is done by stratified or biased-coin randomization, the variance and confidence intervals obtained by the above bootstrap can be conservative [@wang2019model]. One way to avoid conservativeness is to use the `ICAD.R` function for inference (available at https://github.com/BingkaiWang/covariate-adaptive/blob/master/R/ICAD.R). 
+
+The `ICAD.R` function takes input of $Y$ (outcome), $A$ (treatment), $X$ (baseline variables), $\pi$ (targeted $P(A=1)$) and family ("binomial" for binary outcomes). The `ICAD.R` function outputs a summary table gives point estimats, variance and 95\% confidence intervals for unadjusted and adjusted estimators. The following code chunk demonstrates how to use it.
+ 
+```{r, warning = F}
+source_url("https://raw.githubusercontent.com/BingkaiWang/covariate-adaptive/master/R/ICAD.R")
+Y <- CTN03$outcome.OPI
+A <- CTN03$arm
+X <- CTN03[, 3:7]
+Strata <- CTN03$strata
+ICAD(Y, A, Strata, X, pi = 0.5, family = "binomial") %>% round(3)
+```
+
+## The DR-WLS estimator (handling missing outcomes under the missing at random assumption)
+
+### Point estimates
+
+The doubly robust weighted least squared (DR-WLS) estimator from Marshall Joffe is described by [@robins2007]. This estimator involves two working models: an outcome regression model for the outcome and a propensity score model for missing outcomes. In both models, baseline variables in $X$ are adjusted. This estimator is consistent as long as at least one of the models is correct, under the missing at random assumption and the assumption that everyone has a positive probability of completing the trial (i.e., having their primary outcome measured) regardless of their baseline variables. 
+
+Similar to the standardized logistic regression estimator, statistical inference for the DR-WLS estimator can be done by bootstrap under simple randomization and can be outputted by the `ICAD.R` function under stratified or biased-coin randomization.
+
+```{r, warning=F}
+M <- !is.na(CTN03$outcome.OPI) # M is an indicator of non-missingness
+propensity_fit <- glm(M ~., data = cbind(M, CTN03[,2:8]), family = "binomial")
+propensity_score <- predict(propensity_fit, type = "response")
+drwls_fit <- glm(outcome.OPI ~., data = CTN03, family = "binomial", weights = 1/propensity_score)
+p1 <- predict(drwls_fit, mutate(CTN03, arm = 1), type = "response")
+p0 <- predict(drwls_fit, mutate(CTN03, arm = 0), type = "response")
+ATE_drwls <- mean(p1) - mean(p0)
+RR_drwls <- mean(p1) / mean(p0)
+c(ATE_drwls = mean(p1) - mean(p0), 
+  RR_drwls = mean(p1) / mean(p0), 
+  OR_drlws = mean(p1) * mean(1-p0) / (1-mean(p1)) / mean(p0))
+```
+
+### Inference under simple randomization
+
+If the clinical trial is done by simple randomization, then the variances and confidence intervals of $\widehat{\Delta}_{logistic}$ and $\widehat{\Gamma}_{logistic}$ can be approximated by bootstrap using the `boot` package in `R`, as demonstrated by the following R code:
+
+```{r, warning=F}
+drwls <- function(d, i){
+  d <- d[i,]
+  M <- !is.na(d$outcome.OPI) # M is an indicator of non-missingness
+  propensity_fit <- glm(M ~., data = cbind(M, d[,2:8]), family = "binomial")
+  propensity_score <- predict(propensity_fit, type = "response")
+  drwls_fit <- glm(outcome.OPI ~., data = d, family = "binomial", weights = 1/propensity_score)
+  p1 <- predict(drwls_fit, mutate(d, arm = 1), type = "response")
+  p0 <- predict(drwls_fit, mutate(d, arm = 0), type = "response")
+  c(mean(p1) - mean(p0), mean(p1)/mean(p0), mean(p1) * mean(1-p0) / (1-mean(p1)) / mean(p0))
+}
+boot_drwls <- boot(CTN03, statistic = drwls, R = 2000)
+output <- matrix(NA, nrow = 3, ncol = 4, 
+                 dimnames = list(c("ATE_drwls", "RR_drwls", "OR_drwls"), c("est", "var", "CI.lower", "CI.upper")))
+output[,1] <- boot_drwls$t0
+output[,2] <- apply(boot_drwls$t, 2, var)
+for(j in 1:3){output[j, 3:4] <- boot.ci(boot_drwls, type = "bca", index = j)$bca[4:5]}
+round(output, 3)
+
+var_reduction <- matrix(NA, ncol = 1, nrow = 3, dimnames = list(c("ATE", "RR", "OR"), c("Var_reduction")))
+var_reduction[,1] <- 1 - output[,2]/output_unadjusted[,2]
+var_reduction
+```
+
+### Inference under stratified or biased-coin randomization
+
+Similar to the standardized logistic regression estimator, under stratified or biased-coin randomization, the variance and confidence intervals of the DR-WLS estimator for the average treatment effect can be obtained by the `ICAD.R` function.
+
+The R code is the same as in Section 4.1.3, where the result for the DR-WLS estimator is given in the last row of the output.
+
+# References
