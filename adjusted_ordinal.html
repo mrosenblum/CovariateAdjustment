@@ -9,7 +9,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Bingkai Wang, Josh Betz, and Michael Rosenblum" />
+<meta name="author" content="Josh Betz, Bingkai Wang, and Michael Rosenblum" />
 
 
 <title>Covariate Adjustment for Ordinal Outcomes in Clinical Trials</title>
@@ -212,6 +212,15 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
 
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css" data-origin="pandoc">
@@ -337,6 +346,7 @@ h6 {
 
 
 
+
 <style type="text/css">
 .main-container {
   max-width: 940px;
@@ -443,64 +453,145 @@ summary {
 
 
 <h1 class="title toc-ignore">Covariate Adjustment for Ordinal Outcomes in Clinical Trials</h1>
-<h4 class="author">Bingkai Wang, Josh Betz, and Michael Rosenblum</h4>
-<h4 class="date">2020-12-21 11:21</h4>
+<h4 class="author">Josh Betz, Bingkai Wang, and Michael Rosenblum</h4>
+<h4 class="date">2021-03-10 10:56</h4>
 
 </div>
 
 <div id="TOC">
 <ul>
 <li><a href="#using-this-tutorial"><span class="toc-section-number">1</span> Using This Tutorial</a></li>
-<li><a href="#example-data-smart-av-trial"><span class="toc-section-number">2</span> Example Data: SMART-AV Trial</a><ul>
-<li><a href="#description-of-the-trial"><span class="toc-section-number">2.1</span> Description of the Trial</a><ul>
-<li><a href="#baseline-covariates"><span class="toc-section-number">2.1.1</span> Baseline Covariates</a></li>
-<li><a href="#outcomes"><span class="toc-section-number">2.1.2</span> Outcomes</a></li>
-<li><a href="#using-r-and-its-software-packages"><span class="toc-section-number">2.1.3</span> Using R and Its Software Packages</a></li>
-<li><a href="#reading-in-data"><span class="toc-section-number">2.1.4</span> Reading in Data</a></li>
-<li><a href="#data-structure"><span class="toc-section-number">2.1.5</span> Data Structure</a></li>
+<li><a href="#analysis-of-ordinal-outcomes"><span class="toc-section-number">2</span> Analysis of Ordinal Outcomes</a><ul>
+<li><a href="#notation"><span class="toc-section-number">2.1</span> Notation</a></li>
+<li><a href="#dim-difference-in-mean-outcomes"><span class="toc-section-number">2.2</span> DIM: Difference in Mean Outcomes</a></li>
+<li><a href="#m-w-mann-whitney-estimand"><span class="toc-section-number">2.3</span> M-W: Mann-Whitney Estimand</a></li>
+<li><a href="#lor-log-odds-ratio"><span class="toc-section-number">2.4</span> LOR: Log Odds Ratio</a></li>
+<li><a href="#estimates-and-inference"><span class="toc-section-number">2.5</span> Estimates and Inference</a></li>
 </ul></li>
+<li><a href="#example-data-smart-av-trial"><span class="toc-section-number">3</span> Example Data: SMART-AV Trial</a><ul>
+<li><a href="#baseline-covariates"><span class="toc-section-number">3.1</span> Baseline Covariates</a></li>
+<li><a href="#smart-av-outcomes"><span class="toc-section-number">3.2</span> SMART-AV Outcomes</a></li>
 </ul></li>
-<li><a href="#estimands-targets-of-inference"><span class="toc-section-number">3</span> Estimands: Targets of Inference</a><ul>
-<li><a href="#dim-difference-in-mean-outcomes"><span class="toc-section-number">3.1</span> DIM: Difference in Mean Outcomes</a></li>
-<li><a href="#lor-log-odds-ratio"><span class="toc-section-number">3.2</span> LOR: Log Odds Ratio</a></li>
+<li><a href="#using-r-and-its-software-packages"><span class="toc-section-number">4</span> Using R and Its Software Packages</a><ul>
+<li><a href="#reading-in-data"><span class="toc-section-number">4.1</span> Reading in Data</a></li>
+<li><a href="#data-structure"><span class="toc-section-number">4.2</span> Data Structure</a></li>
+<li><a href="#descriptive-statistics"><span class="toc-section-number">4.3</span> Descriptive Statistics</a></li>
+<li><a href="#distribution-of-outcomes"><span class="toc-section-number">4.4</span> Distribution of Outcomes</a></li>
 </ul></li>
-<li><a href="#estimating-the-effect-of-a-treatment"><span class="toc-section-number">4</span> Estimating the Effect of a Treatment</a><ul>
-<li><a href="#unadjusted-difference-in-means"><span class="toc-section-number">4.1</span> Unadjusted Difference in Means</a></li>
-<li><a href="#unadjusted-log-odds-ratio"><span class="toc-section-number">4.2</span> Unadjusted Log Odds Ratio</a></li>
-<li><a href="#adjusted-log-odds-ratio"><span class="toc-section-number">4.3</span> Adjusted Log Odds Ratio</a></li>
+<li><a href="#unadjusted-analyses"><span class="toc-section-number">5</span> Unadjusted Analyses</a><ul>
+<li><a href="#unadjusted-difference-in-means"><span class="toc-section-number">5.1</span> Unadjusted Difference in Means</a></li>
+<li><a href="#unadjusted-mann-whitney-estimate"><span class="toc-section-number">5.2</span> Unadjusted Mann-Whitney Estimate</a></li>
+<li><a href="#unadjusted-log-odds-ratio-estimate"><span class="toc-section-number">5.3</span> Unadjusted Log Odds Ratio Estimate</a></li>
+<li><a href="#confidence-intervals-for-unadjusted-estimates"><span class="toc-section-number">5.4</span> Confidence Intervals for Unadjusted Estimates</a></li>
 </ul></li>
-<li><a href="#appendix"><span class="toc-section-number">5</span> Appendix</a><ul>
-<li><a href="#abbreviations"><span class="toc-section-number">5.1</span> Abbreviations</a></li>
-<li><a href="#software-in-use"><span class="toc-section-number">5.2</span> Software in Use</a></li>
-<li><a href="#resources-for-using-r"><span class="toc-section-number">5.3</span> Resources for Using R</a></li>
+<li><a href="#adjusted-analysis"><span class="toc-section-number">6</span> Adjusted Analysis</a><ul>
+<li><a href="#comparing-adjusted-and-unadjusted-analyses"><span class="toc-section-number">6.1</span> Comparing Adjusted and Unadjusted Analyses</a></li>
+</ul></li>
+<li><a href="#missing-data"><span class="toc-section-number">7</span> Missing Data</a><ul>
+<li><a href="#missing-data-in-covariates"><span class="toc-section-number">7.1</span> Missing Data in Covariates</a></li>
+<li><a href="#missing-outcome-data"><span class="toc-section-number">7.2</span> Missing Outcome Data</a></li>
+</ul></li>
+<li><a href="#choosing-variables-for-adjustment"><span class="toc-section-number">8</span> Choosing Variables for Adjustment</a></li>
+<li><a href="#appendix"><span class="toc-section-number">9</span> Appendix</a><ul>
+<li><a href="#abbreviations"><span class="toc-section-number">9.1</span> Abbreviations</a></li>
+<li><a href="#software-in-use"><span class="toc-section-number">9.2</span> Software in Use</a></li>
+<li><a href="#resources-for-using-r"><span class="toc-section-number">9.3</span> Resources for Using R</a></li>
+<li><a href="#references">References</a></li>
 </ul></li>
 </ul>
 </div>
 
 <div id="using-this-tutorial" class="section level1">
 <h1><span class="header-section-number">1</span> Using This Tutorial</h1>
-<p>This tutorial is to assist analysts in understanding and implementing analyses for ordinal outcomes in randomized controlled trials using actual data from clinical trials. The data in this tutorial come from the SMART-AV trial, a three-arm parallel group trial assessing different treatment strategies for cardiac resynchronization therapy in patients with moderate to severe heart failure.</p>
-<p>In the first section, the trial setting is discussed, laying out the design of the trial, the data collected at baseline and at its follow-up visits. For those new to R, a quick orientation to using R is given, along with the software utilized in this tutorial. The format of the data required for analysis is illustrated.</p>
-<p>In the second section, we discuss the potential quantities one might want to estimate from a randomized trial. The description of each estimand is given, along with methodologic considerations, and further references for study.</p>
-<p>In the third section, we provide worked examples of analyzing ordinal trial outcomes, including examples of covariate adjustment, which can provide improved precision and mitigate residual imbalance in baseline characteristics between arms of a randomized trial.</p>
-<p>The appendix contains a list of abbreviations used, both medical and statistical, as well as further resources for using R.</p>
+<p>This tutorial is to assist analysts in understanding and implementing analyses for ordinal outcomes in randomized controlled trials using actual data from clinical trials. Particular emphasis is placed on adjusted analyses, which take into account variables measured prior to randomization that are also associated with the primary outcome. Adjusting for these variables, called covariates, can result in more precise estimates of treatment effects, as well as account for covariate imbalances between treatment arms that could confound results. Both unadjusted and adjusted analyses are illustrated using data from the SMART-AV trial, a three-arm parallel group trial assessing different treatment strategies for cardiac resynchronization therapy in patients with moderate to severe heart failure.</p>
+<p>In the first section, we discuss the potential quantities one might want to estimate from a randomized trial. The description of each estimand is given, along with methodologic considerations, and further references for study. In the second section, the SMART-AV trial setting is discussed, laying out the design of the trial, the data collected at baseline and at its follow-up visits. For those new to R, a quick orientation to using R is given, along with the software utilized in this tutorial. The format of the data required for analysis is illustrated. In the third section, we provide worked examples of analyzing ordinal trial outcomes, including examples of covariate adjustment, which can provide improved precision and mitigate residual imbalance in baseline characteristics between arms of a randomized trial.</p>
+<p>This tutorial largely follows the notation and recommendations of Benkeser and colleagues <span class="citation">(2020)</span>. The appendix contains a list of abbreviations used, both medical and statistical, as well as further resources for using R.</p>
+</div>
+<div id="analysis-of-ordinal-outcomes" class="section level1">
+<h1><span class="header-section-number">2</span> Analysis of Ordinal Outcomes</h1>
+<p>Here we will demonstrate how to analyze ordinal data from clinical trials, both with and without adjustment for baseline covariates. Adjusted analyses have two potential benefits, mitigation of confounding and improved precision of estimates.</p>
+<p>When we randomly allocate treatment to participants, this will tend to produce experimental groups that are comparable to one another across both observed and unobserved factors. However, in any given treatment allocation, there will be some degree of imbalance in the distribution of baseline covariates between treatment groups. When a variable is a strong predictor of the outcome and is imbalanced across treatment arms, it represents a potential confounding variable. By adjusting analyses for known confounding variables, the effect of confounding can be mitigated.</p>
+<p>An additional benefit of adjustment is that adjusted analyses can be more efficient: compared to an unadjusted analysis, an adjusted analysis may have a lower required sample size to detect a given treatment effect if it exists, or provide greater precision (shorter confidence interval widths and higher power) for the same sample size and treatment effect.</p>
+<div id="notation" class="section level2">
+<h2><span class="header-section-number">2.1</span> Notation</h2>
+<p>Let <span class="math inline">\(A\)</span> denote a binary treatment assignment: <span class="math inline">\(A = 1\)</span> indicates assignment to receive the treatment of interest, and <span class="math inline">\(A = 0\)</span> indicates assignment to the control or comparator group. Let <span class="math inline">\(Y\)</span> denote the ordinal outcome of interest, and <span class="math inline">\(X\)</span> denote a vector of baseline covariates. Treatment is assumed to be assigned independently of baseline characteristics (i.e. <span class="math inline">\(A \perp X\)</span>). Each participant’s data is assumed to be independent, identically distributed (iid) draws from an unknown distribution.</p>
+<p>Note that all analyses follow the intention-to-treat (ITT) principle: all participants are analyzed according to how they were randomized, irrespective of what treatment was received during the trial.</p>
+<p>The outcome <span class="math inline">\(Y\)</span> is assumed to have <span class="math inline">\(k\)</span> ordered categories. For each outcome category <span class="math inline">\(j \in \{1, \ldots, K\}\)</span>, the cumulative distribution function of <span class="math inline">\(Y\)</span> given treatment <span class="math inline">\(A\)</span> is denoted as <span class="math inline">\(Pr\{Y \le j\} = F(j \vert a)\)</span>, and the probability mass function of <span class="math inline">\(Y\)</span> given treatment <span class="math inline">\(A\)</span> is <span class="math inline">\(Pr\{Y = j\} = f(j \vert a) = F(j \vert a) - F(j-1 \vert a)\)</span>.</p>
+<p>Although this notation involves numeric labels for levels, this is merely to simplify notation. Clarifications will be made as needed when distinguishing between outcomes with and without a numeric levels.</p>
+<p>There are many estimands we may be interested in estimating, including the difference in mean outcomes, the Mann-Whitney estimand, and the log odds ratio.</p>
+</div>
+<div id="dim-difference-in-mean-outcomes" class="section level2">
+<h2><span class="header-section-number">2.2</span> DIM: Difference in Mean Outcomes</h2>
+<p>One potential estimand is the differences in the mean outcome between treatment arms, denoted <span class="math inline">\(\delta_{DIM}\)</span>. Let <span class="math inline">\(u(\cdot)\)</span> denote a pre-specified transformation of the outcome. The estimand is defined as:</p>
+<p><span class="math display">\[ \delta_{DIM} = E[u(Y) \vert A=1] - E[u(Y) \vert A=0] = \sum_{i=1}^{k}u(j)\left(f( j \vert 1) - f(j \vert 0)\right) \]</span></p>
+<p>When <span class="math inline">\(u\)</span> is the identity function and the levels of <span class="math inline">\(Y\)</span> are numeric, <span class="math inline">\(\delta_{DIM}\)</span> is the difference in mean outcomes between treatment arms. While the difference in mean outcome may be understandable from a quantitative perspective, the scientific and clinical meaning of this difference may be less clear.</p>
+<p>Another possible choice of <span class="math inline">\(u\)</span> involves incorporation of weights or utilities assigned to each level of the outcome. The quantitative and clinical meanings of these estimators will depend on the weights utilized in the analysis. This allows the difference in means to be used, even if the levels of the outcome are not numeric (e.g. the Glasgow Outcome Scale, ranging from ‘Dead’, ‘Vegetative state’, ‘Severely disabled’, ‘Moderately disabled’, and ‘Good recovery’).</p>
+<p>When all outcomes at or above a threshold <span class="math inline">\(t \in \{2, \ldots, k\}\)</span> are given a utility of 1, and all others are given a utility of 0, this collapses the ordinal outcome into a binary one. The resulting estimand is the risk difference estimator of the outcome being at or above <span class="math inline">\(t\)</span>:</p>
+<p><span class="math display">\[
+    u(Y)= 
+\begin{cases}
+    1: &amp; Y \geq t \\
+    0: &amp; Y &lt; t
+\end{cases}
+\]</span></p>
+<p>While a risk difference may be more familiar to implement and conceptually easier to interpret, it treats all outcome states either below or above the threshold identically, ignoring potential information in such outcome states.</p>
+<p>When utilities can be assigned according to patient preferences or other considerations, the estimand is the difference in mean utility between treatment arms.</p>
+<p><span class="math display">\[
+    u(Y)= 
+\begin{cases}
+    u_{1} := \text{utility of } Y = 1\\
+    u_{2} := \text{utility of } Y = 2\\
+    \vdots \\
+    u_{k} := \text{utility of } Y = k
+\end{cases}
+\]</span></p>
+<p>The utilities will usually be monotone increasing, such that each level of the outcome is associated with equal or better utility. Alternatively, if lower values of the outcome are preferable (such as the NYHA class), utilities will usually be monotone decreasing.</p>
+</div>
+<div id="m-w-mann-whitney-estimand" class="section level2">
+<h2><span class="header-section-number">2.3</span> M-W: Mann-Whitney Estimand</h2>
+<p>The Mann-Whitney estimand gives the probability that a randomly-selected person assigned to treatment of interest will have an outcome on the same level or a higher level than a randomly-selected person assigned to the comparator group, with ties broken at random:</p>
+<p><span class="math display">\[ \delta_{MW} = P(\tilde{Y} &gt; Y \vert \tilde{A} = 1, A = 0) + \frac{1}{2}P(\tilde{Y} = Y \vert \tilde{A} = 1, A = 0) = \sum_{j=1}^{K} \left\{ F(j-1 \vert 0) + \frac{1}{2} f(j \vert 0) \right\} f(j \vert 1) \]</span></p>
+<p>If there is no difference in treatments, we would expect a randomly selected individual from one group to have a higher outcome than a randomly selected individual from the other group about half the time: the null value for this estimand is <span class="math inline">\(1/2\)</span>.</p>
+<p>Note that if higher numerical values indicate worse outcomes, like in the NYHA Class, the outcome scale can be reversed prior to analysis, so that the estimand can be interepreted as the probability that a randomly-selected person assigned to treatment of interest will have an outcome as good or better than a randomly-selected person assigned to the comparator group.</p>
+<p>This estimand addresses a common concern of those choosing between treatment options, and may be easier to communicate to a lay audience.</p>
+</div>
+<div id="lor-log-odds-ratio" class="section level2">
+<h2><span class="header-section-number">2.4</span> LOR: Log Odds Ratio</h2>
+<p>In the case of a binary outcome, the odds ratio of a “good” outcome (<span class="math inline">\(Y=1\)</span>) is <span class="math inline">\(OR = odds(Y = 1 \vert A = 1)/odds(Y = 1 \vert A = 0)\)</span>: a value greater than 1 indicates a greater likelihood of a “good” outcome in the treatment of interest relative to the comparator group, and the log of the odds ratio will be positive.</p>
+<p>In the case of an ordinal outcome with categories <span class="math inline">\(1, \ldots, K\)</span>, these categories can be collapsed into <span class="math inline">\((K-1)\)</span> binary outcomes: <span class="math inline">\(Y \le j\)</span> for <span class="math inline">\(j \in \{1, \ldots, (K-1) \}\)</span>. The odds ratio at threshold <span class="math inline">\(j\)</span> compares the odds of falling at or below level <span class="math inline">\(j\)</span> between the treatment of interest and the comparator group:</p>
+<p><span class="math display">\[ OR_{j} = \frac{odds(Y \le j \vert A = 1)}{odds(Y \le j \vert A = 0)} \]</span></p>
+<p>When this odds ratio is greater than 1, individuals assigned to the treatment of interest are more likely to have outcomes at or below level <span class="math inline">\(j\)</span> than those in the comparator group: the log of this odds ratio will be positive. The log odds ratio estimand combines information across the levels of an ordinal outcome by averaging the log odds of an outcome at or below each threshold across all thresholds of the outcome:</p>
+<p><span class="math display">\[ \delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{odds(Y \le j \vert A = 1)}{odds(Y \le j \vert A = 0)} \right) = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{F(j \vert 1)/ \left( 1 - F(j \vert 1) \right) } {F(j \vert 0)/ \left( 1 - F(j \vert 0) \right) } \right) \]</span></p>
+<p>This estimand is related to the proportional odds logistic regression model, a common parametric model for analyzing ordinal outcomes. In the proportional odds model, a regression coefficient for treatment group gives the increase in the odds of being at or below a given level of the outcome associated with a unit increase in that variable holding all else constant:</p>
+<p><span class="math display">\[ log(odds(Y \le j \vert A)) = logit \left(P(Y \le j \vert A) \right) =  \alpha_{j} + \beta A: \quad j \in \{1, \ldots, (K-1)\} \]</span></p>
+<p>A positive slope indicates greater likelihood of lower scores in those assigned to receive the treatment of interest relative to the comparator group. The proportional odds assumption involves assuming that the treatment has the same effect across each binary threshold (i.e. that <span class="math inline">\(\beta\)</span> does not vary across the <span class="math inline">\(K-1\)</span> thresholds). When this assumption holds, the log odds ratio estimand is the same as the coefficient in the proportional odds model, but importantly, the validity of the LOR estimand does not depend on this assumption <span class="citation">(Dı́az, Colantuoni, and Rosenblum 2015)</span>. As in binary and ordinal logistic regression, the null value for this estimand is 0.</p>
+<p>Since <span class="math inline">\(-log(a/b) = log(b/a)\)</span> and <span class="math inline">\(odds(Y &gt; j \vert A = 1) = 1/odds(Y \le j \vert A = 1)\)</span>, changing the sign of the log odds ratio estimator tells us about the average log odds of having scores higher than level <span class="math inline">\(j\)</span> in the treatment of interest relative to the comparator group:</p>
+<p><span class="math display">\[ -\delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{odds(Y &gt; j \vert A = 1)}{odds(Y &gt; j \vert A = 0)} \right) \]</span></p>
+</div>
+<div id="estimates-and-inference" class="section level2">
+<h2><span class="header-section-number">2.5</span> Estimates and Inference</h2>
+<p>The unadjusted estimates of the DIM, M-W, and LOR can be obtained using the empirical PMFs/CDFs of the outcome in each treatment arm. These empirical estimates can be substituted in to get a “plug-in” estimator of these quantities. Standard errors and confidence intervals can be obtained using the bias corrected and accelerated (BCa) bootstrap.</p>
+<p>Note that the LOR contains a log of a ratio:</p>
+<p><span class="math display">\[\delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{F(j \vert 1)\left( 1 - F(j \vert 0) \right)} {F(j \vert 0) \left( 1 - F(j \vert 1) \right) } \right)\]</span></p>
+<p>One issue that may arise in practice is at least one treatment arm has low observed frequencies in the lowest or highest levels of the outcome (i.e. <span class="math inline">\(\hat{F}(1|A) = 0\)</span> or <span class="math inline">\(\hat{F}(K-1|A) = 1\)</span>). When using bootstrap resampling, some bootstrap samples may have no observed outcomes in those categories. When using the plug-in estimator, this results in either a zero in the numerator, which results in a logarithm that’s undefined, or a zero in the denominator, which results in a ratio that’s not defined. Both the M-W and DIM plug-in estimators are still defined in such cases.</p>
+</div>
 </div>
 <div id="example-data-smart-av-trial" class="section level1">
-<h1><span class="header-section-number">2</span> Example Data: SMART-AV Trial</h1>
-<p>Cardiac Resynchronization Therapy (CRT) has the potential to reduce hospitalizations, prolong survival, and provide better symptom management and quality of life compared to medical therapy alone in patients with severe left ventricular (LV) dysfunction, medically-refractive heart failure (HF) symptoms, and intraventricular conduction delay. <strong>citation</strong></p>
-<p>However, there is variation in the degree of benefit from CRT among patients, and suboptimal arterioventricular (AV) delay timing may be one possible contributor to varying clinical outcomes. At the outset of the SMART-AV trial, previous studies varied in their approach to programming of the AV delay, and the goal of the trial was to assess three potential strategies for AV delay optimization. <strong>citation</strong></p>
-<p>The design of the trial can be found <a href="https://doi.org/10.1111/j.1540-8159.2009.02581.x">here</a>, and the primary results can be found <a href="https://doi.org/10.1161/CIRCULATIONAHA.110.992552">here</a>.</p>
-<div id="description-of-the-trial" class="section level2">
-<h2><span class="header-section-number">2.1</span> Description of the Trial</h2>
-<p>The trial is a parallel 3-arm trial, where patients were randomized 1:1:1 using block randomization stratified by study site. Participants were assessed at two subsequent visits: 3-months and 6-months post-randomization.</p>
-<div id="baseline-covariates" class="section level3">
-<h3><span class="header-section-number">2.1.1</span> Baseline Covariates</h3>
+<h1><span class="header-section-number">3</span> Example Data: SMART-AV Trial</h1>
+<p>In this section, we will discuss the SMART-AV Trial <span class="citation">(Stein et al. 2010)</span>, which will be used as an example for analyzing clinical trials with ordinal outcomes. The setting of the trial is introduced, along with which covariates and outcomes were measured. The distribution of covariates and outcomes in each treatment arm are described.</p>
+<p>Cardiac Resynchronization Therapy (CRT) has the potential to reduce hospitalizations, prolong survival, and provide better symptom management and quality of life compared to medical therapy alone in patients with severe left ventricular (LV) dysfunction, medically-refractive heart failure (HF) symptoms, and intraventricular conduction delay <span class="citation">(Stein et al. 2010)</span>.</p>
+<p>However, there is variation in the degree of benefit from CRT among patients, and suboptimal arterioventricular (AV) delay timing may be one possible contributor to varying clinical outcomes. At the outset of the SMART-AV trial, previous studies varied in their approach to programming of the AV delay, and the goal of the trial was to assess three potential strategies for AV delay optimization <span class="citation">(Stein et al. 2010; Ellenbogen et al. 2010)</span>.</p>
+<p>The SMART-AV trial is a parallel 3-arm trial, where patients were randomized 1:1:1 using block randomization stratified by study site. Participants were assessed at two subsequent visits: 3-months and 6-months post-randomization. Outcomes assessed included echocardiographic assessments, physical performance, and the impact of HF symptoms on quality of life.</p>
+<p>The design of the SMART-AV trial can be found <a href="https://doi.org/10.1111/j.1540-8159.2009.02581.x">here</a>, and the primary results can be found <a href="https://doi.org/10.1161/CIRCULATIONAHA.110.992552">here</a>.</p>
+<div id="baseline-covariates" class="section level2">
+<h2><span class="header-section-number">3.1</span> Baseline Covariates</h2>
+<p>Here we describe the sample according to baseline characteristics, and assess the balance of these characteristics across the treatment arms. Baseline covariates that are strongly associated with the outcome represent both potential sources of confounding as well as information that could be leveraged to improve the precision of estimates.</p>
 <p>Demographic and clinical covariates assessed at baseline include:</p>
 <ul>
 <li>Demographics:
 <ul>
 <li><code>age</code> - Age: age in years</li>
-<li><code>gender</code> - Sex: biological sex</li>
+<li><code>sex</code> - Sex: biological sex (<code>Male</code>/<code>Female</code>)</li>
 </ul></li>
 <li>Anthropometry:
 <ul>
@@ -521,7 +612,7 @@ summary {
 </ul></li>
 <li>Medications at Enrollment:
 <ul>
-<li><code>ace</code> - Angiotensin Converting Enzyme (ACE) Inhibitors</li>
+<li><code>ace</code> - Angiotensin Converting Enzyme (ACE) Inhibitors:</li>
 <li><code>arbs</code> - Angiotensin Receptor Blockers (ARBs)</li>
 <li><code>diuretic</code> - Diuretics</li>
 <li><code>ccb</code> - Calcium Channel Blockers</li>
@@ -536,7 +627,7 @@ summary {
 <li><code>ischemic</code> - Ischemic origin of LV dysfunction</li>
 <li><code>diabetes</code> - Diabetes</li>
 <li><code>lbbb</code> - Left Bundle Branch Block</li>
-<li><code>QRS</code> - QRS wave duration by Electrocardiogram (ms)</li>
+<li><code>qrs</code> - QRS wave duration by Electrocardiogram (ms)</li>
 <li><code>paf</code> - Paroxysmal Atrial Fibrillation</li>
 <li><code>renal</code> - Renal Disease</li>
 <li><code>heart_valve</code> - Heart valve replacement</li>
@@ -544,48 +635,37 @@ summary {
 <li><code>cabg</code> - Coronary Artery Bypass Graft (CABG)</li>
 </ul></li>
 </ul>
-<p>Continuous measures are presented with their units of measure in parenthesis. All other variables are categorical.</p>
+<p>Continuous measures are presented with their units of measure in parenthesis. All other variables are categorical. Aside from sex, all categorical variables were binary indicators, with <code>0</code> indicating absent, and <code>1</code> indicating present.</p>
 </div>
-<div id="outcomes" class="section level3">
-<h3><span class="header-section-number">2.1.2</span> Outcomes</h3>
-<p>The following outcome measures were obtained at baseline, as well as 3- and 6-month post-randomization visits:</p>
+<div id="smart-av-outcomes" class="section level2">
+<h2><span class="header-section-number">3.2</span> SMART-AV Outcomes</h2>
+<p>Here we describe the outcomes measured in the SMART-AV trial, and describe the ordinal outcome of interest. The following outcome measures were obtained at baseline, as well as 3- and 6-month post-randomization visits:</p>
 <ul>
 <li><code>lvesv</code> - Left Ventricular End Systolic Volume (LVESV, in mL)</li>
 <li><code>lvedv</code> - Left Ventricular End Diastolic Volume (LVEDV, in mL)</li>
 <li><code>lvef</code> - Left Ventricular Ejection Fraction (%)</li>
 <li><code>nyha</code> - New York Heart Association (NYHA) class for Heart Failure</li>
-<li><code>qol_score</code> - Quality of Life</li>
-<li><code>walk_test</code> - Walking Test</li>
+<li><code>qol_score</code> - Quality of Life: Minnesota Living with Heart Failure Questionnaire
+<ul>
+<li>Higher score: Poorer quality of life and greater activity limitations</li>
+</ul></li>
+<li><code>walk_test</code> - Walking Test: meters walked in 6 minutes</li>
 </ul>
-<p>All outcomes except NYHA class are continuous measurements. The NYHA class is an ordinal scale with four potential levels <strong>citation</strong>:</p>
+<p>All outcomes except NYHA class are continuous measurements. The NYHA class is an ordinal scale with four potential levels <span class="citation">(Raphael et al. 2007)</span>:</p>
 <ul>
-<li>Class I:
-<ul>
-<li>No limitation of physical activity, comfortable at rest</li>
-<li>Ordinary physical activity does not cause undue fatigue, palpitation, or shortness of breath</li>
-</ul></li>
-<li>Class II:
-<ul>
-<li>Slight limitation of physical activity, comfortable at rest</li>
-<li>Ordinary physical activity causes fatigue, palpitation, or shortness of breath</li>
-</ul></li>
-<li>Class III:
-<ul>
-<li>Marked limitation of physical activity, comfortable at rest</li>
-<li>Less than ordinary physical activity causes fatigue, palpitation, or shortness of breath</li>
-</ul></li>
-<li>Class IV:
-<ul>
-<li>No physical activity without discomfort</li>
-<li>Symptoms of HF at rest</li>
-<li>Any physical acticity results in increased discomfort</li>
-</ul></li>
+<li>Class I: Patients have cardiac disease but without the resulting limitations of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation, dyspnoea (shortness of breath) or anginal pain (squeezing, pressure, heaviness, tightness, or pain in chest - discomfort can also occur elsewhere).</li>
+<li>Class II: Patients have cardiac disease resulting in slight limitation of physical activity. They are comfortable at rest. Ordinary physical activity results in fatigue, palpitation, dyspnoea or anginal pain.</li>
+<li>Class III: Patients have cardiac disease resulting in marked limitation of physical activity. They are comfortable at rest. Less than ordinary physical activity causes fatigue, palpitation, dyspnoea or anginal pain.</li>
+<li>Class IV: Patients have cardiac disease resulting in inability to carry on any physical activity without discomfort. Symptoms of cardiac insufficiency or of the anginal syndrome may be present even at rest. If any physical activity is undertaken, discomfort is increased.</li>
 </ul>
-<p>While the primary outcome of the SMART-AV trial was change from baseline in the left ventricular end systolic volume (LVESV), a continuous outcome, we will use NYHA heart failure classification as the outcome of interest.</p>
+<p>While the primary outcome of the SMART-AV trial was change from baseline in the left ventricular end systolic volume (LVESV), a continuous outcome, we will use NYHA heart failure classification as the outcome of interest. Note that since the NYHA class measures physical limitations due to HF and the severity of HF symptoms with varying levels of activity, we would expect that the 6 minute walk test and the Minnesota Living with Heart Failure Questionnaire would be associated with the outcome.</p>
 </div>
-<div id="using-r-and-its-software-packages" class="section level3">
-<h3><span class="header-section-number">2.1.3</span> Using R and Its Software Packages</h3>
-<p><a href="https://www.r-project.org/">R</a> is a free and open source language and statistical computing environment. <a href="https://rstudio.com/">Rstudio</a> is a powerful development environment for using the R language. The ability of R can be extended by downloading software packages from the <a href="https://cran.r-project.org/">Comprehensive R Archival Network (CRAN)</a>.</p>
+</div>
+<div id="using-r-and-its-software-packages" class="section level1">
+<h1><span class="header-section-number">4</span> Using R and Its Software Packages</h1>
+<p>This section provides a brief overview of the <a href="https://www.r-project.org/">R</a> language and statistical computing environment, as well as other software that is useful for expanding its capabilities.</p>
+<p>The ability of R can be extended by downloading software packages from the <a href="https://cran.r-project.org/">Comprehensive R Archival Network (CRAN)</a>. <a href="https://rstudio.com/">Rstudio</a> is a powerful development environment for using the R language.</p>
+<p>Below are some packages that may be useful:</p>
 <ul>
 <li><a href="https://dplyr.tidyverse.org/">dplyr</a> and <a href="https://tidyr.tidyverse.org/">tidyr</a> - Packages for manipulating data, including selecting rows and columns, generating new variables, arranging and reshaping data, and more.</li>
 <li><a href="https://haven.tidyverse.org/">haven</a> - Packages for reading in different data formats, such as comma separated values (.csv), SAS (.sas7bdat), SPSS (.sav), Stata (.dta), and xport (.xpt) files.</li>
@@ -593,75 +673,1503 @@ summary {
 </ul>
 <p>In R, these packages can be installed from the Comprehensive R Archival Network, or CRAN, using the <code>install.packages()</code> command. In Rstudio IDE, there is a ‘Packages’ tab that allows users to see which packages are installed, which are currently in use, and update packages using a graphical interface.</p>
 <p>For example, the <code>drord</code> package can be installed as follows:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">install.packages</span>(<span class="dt">pkgs =</span> <span class="st">&quot;drord&quot;</span>)</span></code></pre></div>
 <p>R will automatically install the package and any other package ‘dependencies’ - other packages required for its use.</p>
+<div id="reading-in-data" class="section level2">
+<h2><span class="header-section-number">4.1</span> Reading in Data</h2>
+<p>R can read in data from many different sources, including formats for SAS, Stata, SPSS, Excel, and others. Create a path to the data using <code>file.path()</code> - different data formats may require different functions for reading in the data. Delimited text data, such as CSV files, can be read in using the <code>utils</code> package. Formatted data from statistical packages like SAS, Stata, SPSS, and others can be read in using <code>haven</code> or other packages. Spreadsheets can be read in using the <code>readxl</code> package.</p>
 </div>
-<div id="reading-in-data" class="section level3">
-<h3><span class="header-section-number">2.1.4</span> Reading in Data</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a>input.dir &lt;-<span class="st"> </span><span class="kw">paste0</span>(<span class="st">&quot;S:&quot;</span>, <span class="st">&quot;projects&quot;</span>, <span class="st">&quot;SMART-AV&quot;</span>, <span class="st">&quot;data&quot;</span>, <span class="st">&quot;160909&quot;</span>)</span>
-<span id="cb2-2"><a href="#cb2-2"></a>input.file &lt;-<span class="st"> &quot;w_SMART-AV_v0.0_2016-09-09.dta&quot;</span></span>
-<span id="cb2-3"><a href="#cb2-3"></a>input.path &lt;-<span class="st"> </span><span class="kw">file.path</span>(input.dir, input.file)</span></code></pre></div>
-<p>The resulting file path is S:projectsSMART-AVdata160909/w_SMART-AV_v0.0_2016-09-09.dta - the file name includes a date stamp to indicate a version of the original primary data (2016-09-09), and the version of the code used to produce the file (v0.0).</p>
-<p>We can read in the data using the <code>haven::read_dta()</code> function.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a>smartav &lt;-<span class="st"> </span>haven<span class="op">::</span><span class="kw">read_dta</span>(<span class="dt">file =</span> input.path)</span></code></pre></div>
+<div id="data-structure" class="section level2">
+<h2><span class="header-section-number">4.2</span> Data Structure</h2>
+<p>In this section, we discuss the format of data, and how to make data ready to analyze. With SMART-AV, the data is recorded in <em>wide</em> format: each row contains all observations pertaining to an individual arranged in multiple columns. Data can be reshaped to long format using one of many potential functions: <code>stats::reshape</code>, <code>tidyr::pivot_longer</code>, or others. There are several worked examples of <code>dplyr</code> and <code>tidyr</code> in action on the web at the <a href="https://www.tidyverse.org/">Tidyverse site</a>.</p>
 </div>
-<div id="data-structure" class="section level3">
-<h3><span class="header-section-number">2.1.5</span> Data Structure</h3>
-<p>The original data is in <em>wide</em> format: each row contains all observations pertaining to an individual across multiple columns. Data can be reshaped to long format using one of many potential functions: <code>stats::reshape</code>, <code>tidyr::pivot_longer</code>, or others. There are several worked examples of <code>dplyr</code> and <code>tidyr</code> in action on the web at the <a href="https://www.tidyverse.org/">Tidyverse site</a>.</p>
+<div id="descriptive-statistics" class="section level2">
+<h2><span class="header-section-number">4.3</span> Descriptive Statistics</h2>
+<p>Here we present the distribution of baseline covariates in aggregate and by treatment arm. This allows us to assess the balance of known predictors of the outcome across treatment arms, as well as assess the frequency of missing covariates.</p>
+<table style="width:100%;">
+<caption>Baseline characteristics in aggregate and by treatment arm. Note: the number of observations is suppressed for numeric variables with no missing data. Frequencies are tabulated out of the total number of participants. Missing values for categorical variables are indicated by ’(Missing)`.</caption>
+<colgroup>
+<col width="18%"></col>
+<col width="9%"></col>
+<col width="17%"></col>
+<col width="17%"></col>
+<col width="17%"></col>
+<col width="17%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Variable</th>
+<th align="left">Summary</th>
+<th align="left">All</th>
+<th align="left">Algorithm</th>
+<th align="left">Echo</th>
+<th align="left">Fixed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Age (y)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">66.1 (11.0)</td>
+<td align="left">66.4 (10.6)</td>
+<td align="left">65.8 (11.2)</td>
+<td align="left">66.1 (11.3)</td>
+</tr>
+<tr class="even">
+<td align="left">Age (y)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">59.0 / 67.0 / 74.0</td>
+<td align="left">60.0 / 67.0 / 74.0</td>
+<td align="left">58.0 / 67.0 / 74.0</td>
+<td align="left">59.0 / 66.0 / 76.0</td>
+</tr>
+<tr class="odd">
+<td align="left">Sex - Female</td>
+<td align="left">N</td>
+<td align="left">314/980 (32.0%)</td>
+<td align="left">97/332 (29.2%)</td>
+<td align="left">103/323 (31.9%)</td>
+<td align="left">114/325 (35.1%)</td>
+</tr>
+<tr class="even">
+<td align="left">Sex - Male</td>
+<td align="left">N</td>
+<td align="left">666/980 (68.0%)</td>
+<td align="left">235/332 (70.8%)</td>
+<td align="left">220/323 (68.1%)</td>
+<td align="left">211/325 (64.9%)</td>
+</tr>
+<tr class="odd">
+<td align="left">BMI (kg/m^2)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">29.5 (6.3)</td>
+<td align="left">29.7 (6.6)</td>
+<td align="left">29.4 (6.0)</td>
+<td align="left">29.6 (6.3)</td>
+</tr>
+<tr class="even">
+<td align="left">BMI (kg/m^2)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">25.2 / 28.6 / 32.5</td>
+<td align="left">25.3 / 28.4 / 33.0</td>
+<td align="left">25.2 / 28.6 / 32.3</td>
+<td align="left">25.0 / 29.0 / 32.7</td>
+</tr>
+<tr class="odd">
+<td align="left">SBP (mm Hg)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">123.4 (20.4)</td>
+<td align="left">125.2 (20.4)</td>
+<td align="left">120.8 (20.7)</td>
+<td align="left">124.3 (19.8)</td>
+</tr>
+<tr class="even">
+<td align="left">SBP (mm Hg)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">109.0 / 121.0 / 135.0</td>
+<td align="left">111.0 / 123.0 / 136.0</td>
+<td align="left">106.0 / 119.0 / 134.0</td>
+<td align="left">110.0 / 122.0 / 135.0</td>
+</tr>
+<tr class="odd">
+<td align="left">DBP (mm Hg)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">70.9 (13.0)</td>
+<td align="left">71.9 (13.9)</td>
+<td align="left">70.0 (12.9)</td>
+<td align="left">70.8 (12.0)</td>
+</tr>
+<tr class="even">
+<td align="left">DBP (mm Hg)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">62.0 / 70.0 / 80.0</td>
+<td align="left">63.0 / 70.0 / 80.0</td>
+<td align="left">61.0 / 70.0 / 78.0</td>
+<td align="left">62.0 / 70.0 / 80.0</td>
+</tr>
+<tr class="odd">
+<td align="left">Systemic HTN</td>
+<td align="left">N</td>
+<td align="left">679/980 (69.3%)</td>
+<td align="left">238/332 (71.7%)</td>
+<td align="left">217/323 (67.2%)</td>
+<td align="left">224/325 (68.9%)</td>
+</tr>
+<tr class="even">
+<td align="left">Pulmonary HTN</td>
+<td align="left">N</td>
+<td align="left">44/980 (4.5%)</td>
+<td align="left">11/332 (3.3%)</td>
+<td align="left">16/323 (5.0%)</td>
+<td align="left">17/325 (5.2%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">N</td>
+<td align="left">979/980 (99.9%)</td>
+<td align="left">332/332 (100.0%)</td>
+<td align="left">323/323 (100.0%)</td>
+<td align="left">324/325 (99.7%)</td>
+</tr>
+<tr class="even">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">71.2 (12.4)</td>
+<td align="left">70.8 (12.0)</td>
+<td align="left">71.8 (12.6)</td>
+<td align="left">70.9 (12.6)</td>
+</tr>
+<tr class="odd">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">63.0 / 70.0 / 80.0</td>
+<td align="left">62.0 / 70.0 / 79.2</td>
+<td align="left">64.0 / 71.0 / 80.0</td>
+<td align="left">63.0 / 69.0 / 79.0</td>
+</tr>
+<tr class="even">
+<td align="left">LBBB Present</td>
+<td align="left">N</td>
+<td align="left">753/980 (76.8%)</td>
+<td align="left">263/332 (79.2%)</td>
+<td align="left">234/323 (72.4%)</td>
+<td align="left">256/325 (78.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Ischemic Origin</td>
+<td align="left">N</td>
+<td align="left">555/980 (56.6%)</td>
+<td align="left">190/332 (57.2%)</td>
+<td align="left">182/323 (56.3%)</td>
+<td align="left">183/325 (56.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Non-Ischemic Origin</td>
+<td align="left">N</td>
+<td align="left">424/980 (43.3%)</td>
+<td align="left">142/332 (42.8%)</td>
+<td align="left">140/323 (43.3%)</td>
+<td align="left">142/325 (43.7%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Origin (Missing)</td>
+<td align="left">N</td>
+<td align="left">1/980 (0.1%)</td>
+<td align="left"></td>
+<td align="left">1/323 (0.3%)</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left">Hx PAF</td>
+<td align="left">N</td>
+<td align="left">120/980 (12.2%)</td>
+<td align="left">37/332 (11.1%)</td>
+<td align="left">37/323 (11.5%)</td>
+<td align="left">46/325 (14.2%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Hx Diabetes</td>
+<td align="left">N</td>
+<td align="left">370/980 (37.8%)</td>
+<td align="left">133/332 (40.1%)</td>
+<td align="left">109/323 (33.7%)</td>
+<td align="left">128/325 (39.4%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx Renal Disease</td>
+<td align="left">N</td>
+<td align="left">158/980 (16.1%)</td>
+<td align="left">48/332 (14.5%)</td>
+<td align="left">59/323 (18.3%)</td>
+<td align="left">51/325 (15.7%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Hx COPD</td>
+<td align="left">N</td>
+<td align="left">151/980 (15.4%)</td>
+<td align="left">55/332 (16.6%)</td>
+<td align="left">47/323 (14.6%)</td>
+<td align="left">49/325 (15.1%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx CABG</td>
+<td align="left">N</td>
+<td align="left">321/980 (32.8%)</td>
+<td align="left">104/332 (31.3%)</td>
+<td align="left">107/323 (33.1%)</td>
+<td align="left">110/325 (33.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Hx CABG (Missing)</td>
+<td align="left">N</td>
+<td align="left">5/980 (0.5%)</td>
+<td align="left">1/332 (0.3%)</td>
+<td align="left">2/323 (0.6%)</td>
+<td align="left">2/325 (0.6%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx Valve Replacement</td>
+<td align="left">N</td>
+<td align="left">54/980 (5.5%)</td>
+<td align="left">17/332 (5.1%)</td>
+<td align="left">20/323 (6.2%)</td>
+<td align="left">17/325 (5.2%)</td>
+</tr>
+<tr class="odd">
+<td align="left">NYHA I</td>
+<td align="left">N</td>
+<td align="left">1/980 (0.1%)</td>
+<td align="left"></td>
+<td align="left">1/323 (0.3%)</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left">NYHA II</td>
+<td align="left">N</td>
+<td align="left">24/980 (2.4%)</td>
+<td align="left">12/332 (3.6%)</td>
+<td align="left">6/323 (1.9%)</td>
+<td align="left">6/325 (1.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">NYHA III</td>
+<td align="left">N</td>
+<td align="left">925/980 (94.4%)</td>
+<td align="left">307/332 (92.5%)</td>
+<td align="left">311/323 (96.3%)</td>
+<td align="left">307/325 (94.5%)</td>
+</tr>
+<tr class="even">
+<td align="left">NYHA IV</td>
+<td align="left">N</td>
+<td align="left">27/980 (2.8%)</td>
+<td align="left">12/332 (3.6%)</td>
+<td align="left">5/323 (1.5%)</td>
+<td align="left">10/325 (3.1%)</td>
+</tr>
+<tr class="odd">
+<td align="left">NYHA (Missing)</td>
+<td align="left">N</td>
+<td align="left">3/980 (0.3%)</td>
+<td align="left">1/332 (0.3%)</td>
+<td align="left"></td>
+<td align="left">2/325 (0.6%)</td>
+</tr>
+<tr class="even">
+<td align="left">LVESV (mL)</td>
+<td align="left">N</td>
+<td align="left">960/980 (98.0%)</td>
+<td align="left">325/332 (97.9%)</td>
+<td align="left">319/323 (98.8%)</td>
+<td align="left">316/325 (97.2%)</td>
+</tr>
+<tr class="odd">
+<td align="left">LVESV (mL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">130.6 (63.5)</td>
+<td align="left">131.4 (62.8)</td>
+<td align="left">131.8 (65.0)</td>
+<td align="left">128.6 (62.9)</td>
+</tr>
+<tr class="even">
+<td align="left">LVESV (mL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">84.8 / 118.0 / 156.0</td>
+<td align="left">86.0 / 119.0 / 156.0</td>
+<td align="left">85.0 / 117.0 / 157.5</td>
+<td align="left">83.0 / 115.0 / 154.2</td>
+</tr>
+<tr class="odd">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">N</td>
+<td align="left">977/980 (99.7%)</td>
+<td align="left">331/332 (99.7%)</td>
+<td align="left">321/323 (99.4%)</td>
+<td align="left">325/325 (100.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">152.4 (20.1)</td>
+<td align="left">151.7 (20.6)</td>
+<td align="left">152.7 (19.6)</td>
+<td align="left">152.8 (20.2)</td>
+</tr>
+<tr class="odd">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">138.0 / 152.0 / 164.0</td>
+<td align="left">136.0 / 150.0 / 164.0</td>
+<td align="left">138.0 / 152.0 / 164.0</td>
+<td align="left">140.0 / 152.0 / 164.0</td>
+</tr>
+<tr class="even">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">N</td>
+<td align="left">969/980 (98.9%)</td>
+<td align="left">330/332 (99.4%)</td>
+<td align="left">318/323 (98.5%)</td>
+<td align="left">321/325 (98.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">270.8 (124.7)</td>
+<td align="left">271.7 (123.9)</td>
+<td align="left">277.1 (126.7)</td>
+<td align="left">263.7 (123.6)</td>
+</tr>
+<tr class="even">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">182.9 / 278.9 / 350.5</td>
+<td align="left">186.1 / 281.5 / 350.0</td>
+<td align="left">184.0 / 275.8 / 360.4</td>
+<td align="left">167.6 / 277.4 / 344.4</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses ACE Inhibitors</td>
+<td align="left">N</td>
+<td align="left">645/980 (65.8%)</td>
+<td align="left">214/332 (64.5%)</td>
+<td align="left">206/323 (63.8%)</td>
+<td align="left">225/325 (69.2%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses ARBs</td>
+<td align="left">N</td>
+<td align="left">202/980 (20.6%)</td>
+<td align="left">75/332 (22.6%)</td>
+<td align="left">73/323 (22.6%)</td>
+<td align="left">54/325 (16.6%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses Diuretics</td>
+<td align="left">N</td>
+<td align="left">799/980 (81.5%)</td>
+<td align="left">272/332 (81.9%)</td>
+<td align="left">260/323 (80.5%)</td>
+<td align="left">267/325 (82.2%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses CCBs</td>
+<td align="left">N</td>
+<td align="left">69/980 (7.0%)</td>
+<td align="left">29/332 (8.7%)</td>
+<td align="left">21/323 (6.5%)</td>
+<td align="left">19/325 (5.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses <span class="math inline">\(\beta\)</span>Bs</td>
+<td align="left">N</td>
+<td align="left">899/980 (91.7%)</td>
+<td align="left">304/332 (91.6%)</td>
+<td align="left">293/323 (90.7%)</td>
+<td align="left">302/325 (92.9%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses Spironolactone</td>
+<td align="left">N</td>
+<td align="left">304/980 (31.0%)</td>
+<td align="left">107/332 (32.2%)</td>
+<td align="left">99/323 (30.7%)</td>
+<td align="left">98/325 (30.2%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses Digoxin</td>
+<td align="left">N</td>
+<td align="left">216/980 (22.0%)</td>
+<td align="left">64/332 (19.3%)</td>
+<td align="left">78/323 (24.1%)</td>
+<td align="left">74/325 (22.8%)</td>
+</tr>
+<tr class="even">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">N</td>
+<td align="left">960/980 (98.0%)</td>
+<td align="left">323/332 (97.3%)</td>
+<td align="left">316/323 (97.8%)</td>
+<td align="left">321/325 (98.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">24.4 (13.1)</td>
+<td align="left">24.2 (12.5)</td>
+<td align="left">25.3 (14.7)</td>
+<td align="left">23.7 (12.1)</td>
+</tr>
+<tr class="even">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">16.0 / 21.0 / 29.0</td>
+<td align="left">16.0 / 20.5 / 29.0</td>
+<td align="left">15.0 / 21.0 / 31.0</td>
+<td align="left">16.0 / 21.0 / 28.0</td>
+</tr>
+<tr class="odd">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">N</td>
+<td align="left">969/980 (98.9%)</td>
+<td align="left">327/332 (98.5%)</td>
+<td align="left">320/323 (99.1%)</td>
+<td align="left">322/325 (99.1%)</td>
+</tr>
+<tr class="even">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">1.3 (0.7)</td>
+<td align="left">1.3 (0.7)</td>
+<td align="left">1.3 (0.8)</td>
+<td align="left">1.2 (0.5)</td>
+</tr>
+<tr class="odd">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">0.9 / 1.1 / 1.4</td>
+<td align="left">0.9 / 1.1 / 1.4</td>
+<td align="left">0.9 / 1.1 / 1.4</td>
+<td align="left">0.9 / 1.1 / 1.4</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="distribution-of-outcomes" class="section level2">
+<h2><span class="header-section-number">4.4</span> Distribution of Outcomes</h2>
+<p>Here we show the empirical distribution of the outcome. We tabulate the frequency of each outcome category, the cumulative frequency, and the log odds ratio for each category.</p>
+<p>Special attention is warranted to the lowest and highest levels of the outcome: if these frequencies are sufficiently low, they may pose a problem for the LOR estimator.</p>
+<table>
+<caption>Frequency of NYHA Class at 6 months post-randomization. Percentage of missing values out of all participants randomized is presented, as well as the frequency of outcome classes among participants with observed outcomes.</caption>
+<thead>
+<tr class="header">
+<th align="left">6M NYHA Class</th>
+<th align="left">Algorithm</th>
+<th align="left">Echo</th>
+<th align="left">Fixed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">(Missing)</td>
+<td align="left">44/332 (13.3%)</td>
+<td align="left">40/323 (12.4%)</td>
+<td align="left">41/325 (12.6%)</td>
+</tr>
+<tr class="even">
+<td align="left">Class I</td>
+<td align="left">68/332 (20.5%)</td>
+<td align="left">55/323 (17.0%)</td>
+<td align="left">55/325 (16.9%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Class II</td>
+<td align="left">155/332 (46.7%)</td>
+<td align="left">148/323 (45.8%)</td>
+<td align="left">163/325 (50.2%)</td>
+</tr>
+<tr class="even">
+<td align="left">Class III</td>
+<td align="left">58/332 (17.5%)</td>
+<td align="left">76/323 (23.5%)</td>
+<td align="left">65/325 (20.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Class IV</td>
+<td align="left">7/332 (2.1%)</td>
+<td align="left">4/323 (1.2%)</td>
+<td align="left">1/325 (0.3%)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption>Estimated cumulative distributon and log odds ratios by treatment arm.</caption>
+<thead>
+<tr class="header">
+<th align="left">name</th>
+<th align="left">Algorithm</th>
+<th align="left">Echo</th>
+<th align="left">Fixed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><span class="math inline">\(Pr\{Y \le 1 \vert A\}\)</span></td>
+<td align="left">68/288 (23.6%)</td>
+<td align="left">55/283 (19.4%)</td>
+<td align="left">55/284 (19.4%)</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(Pr\{Y \le 2 \vert A\}\)</span></td>
+<td align="left">223/288 (77.4%)</td>
+<td align="left">203/283 (71.7%)</td>
+<td align="left">218/284 (76.8%)</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(Pr\{Y \le 3 \vert A\}\)</span></td>
+<td align="left">281/288 (97.6%)</td>
+<td align="left">279/283 (98.6%)</td>
+<td align="left">283/284 (99.6%)</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(log(odds\{Y \le 1 \vert A\})\)</span></td>
+<td align="left">-1.2</td>
+<td align="left">-1.4</td>
+<td align="left">-1.4</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(log(odds\{Y \le 2 \vert A\})\)</span></td>
+<td align="left">1.2</td>
+<td align="left">0.9</td>
+<td align="left">1.2</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(log(odds\{Y \le 3 \vert A\})\)</span></td>
+<td align="left">3.7</td>
+<td align="left">4.2</td>
+<td align="left">5.6</td>
+</tr>
+<tr class="odd">
+<td align="left">(Missing)</td>
+<td align="left">44/332 (13.3%)</td>
+<td align="left">40/323 (12.4%)</td>
+<td align="left">41/325 (12.6%)</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
-</div>
-<div id="estimands-targets-of-inference" class="section level1">
-<h1><span class="header-section-number">3</span> Estimands: Targets of Inference</h1>
-<p>Note that all analyses follow the intention-to-treat (ITT) principle: all participants are analyzed according to how they were randomized, irrespective of what treatment was received during the trial.</p>
-<div id="dim-difference-in-mean-outcomes" class="section level2">
-<h2><span class="header-section-number">3.1</span> DIM: Difference in Mean Outcomes</h2>
-</div>
-<div id="lor-log-odds-ratio" class="section level2">
-<h2><span class="header-section-number">3.2</span> LOR: Log Odds Ratio</h2>
-</div>
-</div>
-<div id="estimating-the-effect-of-a-treatment" class="section level1">
-<h1><span class="header-section-number">4</span> Estimating the Effect of a Treatment</h1>
+<div id="unadjusted-analyses" class="section level1">
+<h1><span class="header-section-number">5</span> Unadjusted Analyses</h1>
+<p>This section demonstrates estimating the DIM, Mann-Whitney, and LOR estimands in R, and obtaining their standard errors and 95% confidence intervals using the BCa bootstrap.</p>
+<p>Since there are so few 6-month outcomes in class IV, it’s quite possible that in some bootstrap samples, at least one treatment group may have no class IV outcomes. While this does not pose difficulties for the DIM and MW estimators, it does pose a potential problem for the LOR estimator. We can pool classes III and IV together to avoid the issue of an undefined plug-in estimator.</p>
+<p>We can also define utilities to use for the difference-in-means estimand.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="co"># Example Utilities</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a>u_class_i &lt;-<span class="st"> </span><span class="dv">100</span></span>
+<span id="cb1-3"><a href="#cb1-3"></a>u_class_ii &lt;-<span class="st"> </span><span class="dv">80</span></span>
+<span id="cb1-4"><a href="#cb1-4"></a>u_class_iii_iv &lt;-<span class="st"> </span><span class="dv">40</span></span>
+<span id="cb1-5"><a href="#cb1-5"></a></span>
+<span id="cb1-6"><a href="#cb1-6"></a>nyha_utilities &lt;-</span>
+<span id="cb1-7"><a href="#cb1-7"></a><span class="st">  </span><span class="kw">c</span>(u_class_i, u_class_ii, u_class_iii_iv)</span></code></pre></div>
 <div id="unadjusted-difference-in-means" class="section level2">
-<h2><span class="header-section-number">4.1</span> Unadjusted Difference in Means</h2>
+<h2><span class="header-section-number">5.1</span> Unadjusted Difference in Means</h2>
+<p>The difference in mean NYHA scores between arms can be calculated using the <code>dim_estimate</code> function:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb2-2"><a href="#cb2-2"></a>     <span class="kw">dim_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb2-3"><a href="#cb2-3"></a>                  <span class="dt">treatment =</span> treatment,</span>
+<span id="cb2-4"><a href="#cb2-4"></a>                  <span class="dt">outcome_levels =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>))</span></code></pre></div>
+<pre><code>##            [,1]
+## [1,] -0.0423287</code></pre>
+<p>The average NYHA class is higher in the fixed delay comparator group than the algorithmic delay treatment group, but this difference is not very large. We can incorporate utilities using the <code>utilities</code> argument:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb4-2"><a href="#cb4-2"></a>     <span class="kw">dim_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb4-3"><a href="#cb4-3"></a>                  <span class="dt">treatment =</span> treatment,</span>
+<span id="cb4-4"><a href="#cb4-4"></a>                  <span class="dt">outcome_levels =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>,</span>
+<span id="cb4-5"><a href="#cb4-5"></a>                  <span class="dt">utilities =</span> nyha_utilities))</span></code></pre></div>
+<pre><code>##          [,1]
+## [1,] 0.894759</code></pre>
+<p>The average utility is higher in the algorithmic delay group relative to the fixed delay comparator group: again, the difference is not very large, given that the utilities range from 40 to 100.</p>
 </div>
-<div id="unadjusted-log-odds-ratio" class="section level2">
-<h2><span class="header-section-number">4.2</span> Unadjusted Log Odds Ratio</h2>
+<div id="unadjusted-mann-whitney-estimate" class="section level2">
+<h2><span class="header-section-number">5.2</span> Unadjusted Mann-Whitney Estimate</h2>
+<p>For the Mann-Whitney estimate, we can use the <code>mw_estimate</code> function:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb6-2"><a href="#cb6-2"></a>     <span class="kw">mw_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb6-3"><a href="#cb6-3"></a>                  <span class="dt">treatment =</span> treatment,</span>
+<span id="cb6-4"><a href="#cb6-4"></a>                  <span class="dt">outcome_levels =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>))</span></code></pre></div>
+<pre><code>## [1] 0.4836542</code></pre>
+<p>The probability that a randomly selected individual from the algorithmic delay group has a higher NYHA Class (worse outcome) compared to a randomly selected individual from the fixed delay comparator group is less than half, but not by much. We can re-order the outcome levels using the <code>outcome_levels</code> argument:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb8-2"><a href="#cb8-2"></a>     <span class="kw">mw_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb8-3"><a href="#cb8-3"></a>                 <span class="dt">treatment =</span> treatment,</span>
+<span id="cb8-4"><a href="#cb8-4"></a>                 <span class="dt">outcome_levels =</span> <span class="dv">3</span><span class="op">:</span><span class="dv">1</span>))</span></code></pre></div>
+<pre><code>## [1] 0.5163458</code></pre>
+<p>Note that this is simply the complement of the earlier result, since ties are broken at random.</p>
 </div>
-<div id="adjusted-log-odds-ratio" class="section level2">
-<h2><span class="header-section-number">4.3</span> Adjusted Log Odds Ratio</h2>
+<div id="unadjusted-log-odds-ratio-estimate" class="section level2">
+<h2><span class="header-section-number">5.3</span> Unadjusted Log Odds Ratio Estimate</h2>
+<p>The log odds ratio estimate can be obtained using <code>lor_estimate</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb10-2"><a href="#cb10-2"></a>     <span class="kw">lor_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb10-3"><a href="#cb10-3"></a>                 <span class="dt">treatment =</span> treatment,</span>
+<span id="cb10-4"><a href="#cb10-4"></a>                 <span class="dt">outcome_levels =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>))</span></code></pre></div>
+<pre><code>## [1] 0.1256505</code></pre>
+<p>Here we see a positive estimate, suggesting that when we average across all the possible thresholds of the outcome, those assigned to the algorithmic group had higher log odds of being at or below a given threshold relative to the fixed delay group. As expected, reversing the levels changes the sign of the estimate.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="kw">with</span>(smart_sf,</span>
+<span id="cb12-2"><a href="#cb12-2"></a>     <span class="kw">lor_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb12-3"><a href="#cb12-3"></a>                 <span class="dt">treatment =</span> treatment,</span>
+<span id="cb12-4"><a href="#cb12-4"></a>                 <span class="dt">outcome_levels =</span> <span class="dv">3</span><span class="op">:</span><span class="dv">1</span>))</span></code></pre></div>
+<pre><code>## [1] -0.1256505</code></pre>
 </div>
+<div id="confidence-intervals-for-unadjusted-estimates" class="section level2">
+<h2><span class="header-section-number">5.4</span> Confidence Intervals for Unadjusted Estimates</h2>
+<p>We can calculate the standard errors of these quantities using the bias corrected and accelerated (BCa) bootstrap with the <code>boot()</code> function. In order to do this, we must create a function that takes in (1) the data, (2) the indices of the bootstrap sample, and (3) any additional arguments and returns the estimates. See <code>?boot</code> for more information on bootstrapping in R.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a>dim_mw_lor &lt;-</span>
+<span id="cb14-2"><a href="#cb14-2"></a><span class="st">  </span><span class="cf">function</span>(data, indices, outcome_levels, <span class="dt">utilities =</span> <span class="ot">NULL</span>){</span>
+<span id="cb14-3"><a href="#cb14-3"></a>    dim_unweighted &lt;-</span>
+<span id="cb14-4"><a href="#cb14-4"></a><span class="st">      </span><span class="kw">with</span>(data[indices,],</span>
+<span id="cb14-5"><a href="#cb14-5"></a>           <span class="kw">dim_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb14-6"><a href="#cb14-6"></a>                        <span class="dt">treatment =</span> treatment,</span>
+<span id="cb14-7"><a href="#cb14-7"></a>                        <span class="dt">outcome_levels =</span> outcome_levels))</span>
+<span id="cb14-8"><a href="#cb14-8"></a>    </span>
+<span id="cb14-9"><a href="#cb14-9"></a>    dim_weighted &lt;-</span>
+<span id="cb14-10"><a href="#cb14-10"></a><span class="st">      </span><span class="kw">ifelse</span>(<span class="dt">test =</span> <span class="kw">is.null</span>(utilities),</span>
+<span id="cb14-11"><a href="#cb14-11"></a>             <span class="dt">yes =</span> <span class="ot">NA</span>,</span>
+<span id="cb14-12"><a href="#cb14-12"></a>             <span class="dt">no =</span></span>
+<span id="cb14-13"><a href="#cb14-13"></a>               <span class="kw">with</span>(data[indices,],</span>
+<span id="cb14-14"><a href="#cb14-14"></a>                    <span class="kw">dim_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb14-15"><a href="#cb14-15"></a>                                 <span class="dt">treatment =</span> treatment,</span>
+<span id="cb14-16"><a href="#cb14-16"></a>                                 <span class="dt">utilities =</span> utilities,</span>
+<span id="cb14-17"><a href="#cb14-17"></a>                                 <span class="dt">outcome_levels =</span> outcome_levels))</span>
+<span id="cb14-18"><a href="#cb14-18"></a>      )</span>
+<span id="cb14-19"><a href="#cb14-19"></a>    </span>
+<span id="cb14-20"><a href="#cb14-20"></a>    mw &lt;-<span class="st"> </span></span>
+<span id="cb14-21"><a href="#cb14-21"></a><span class="st">      </span><span class="kw">with</span>(data[indices,],</span>
+<span id="cb14-22"><a href="#cb14-22"></a>           <span class="kw">mw_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb14-23"><a href="#cb14-23"></a>                       <span class="dt">treatment =</span> treatment))</span>
+<span id="cb14-24"><a href="#cb14-24"></a>    </span>
+<span id="cb14-25"><a href="#cb14-25"></a>    lor &lt;-<span class="st"> </span></span>
+<span id="cb14-26"><a href="#cb14-26"></a><span class="st">      </span><span class="kw">with</span>(data[indices,],</span>
+<span id="cb14-27"><a href="#cb14-27"></a>           <span class="kw">lor_estimate</span>(<span class="dt">outcome =</span> nyha_6m_3lvl,</span>
+<span id="cb14-28"><a href="#cb14-28"></a>                        <span class="dt">treatment =</span> treatment))</span>
+<span id="cb14-29"><a href="#cb14-29"></a>    </span>
+<span id="cb14-30"><a href="#cb14-30"></a>    <span class="kw">c</span>(dim_unweighted, dim_weighted, mw, lor)</span>
+<span id="cb14-31"><a href="#cb14-31"></a>  }</span>
+<span id="cb14-32"><a href="#cb14-32"></a></span>
+<span id="cb14-33"><a href="#cb14-33"></a>boot.results &lt;-</span>
+<span id="cb14-34"><a href="#cb14-34"></a><span class="st">  </span><span class="kw">boot</span>(<span class="dt">data =</span> smart_sf,</span>
+<span id="cb14-35"><a href="#cb14-35"></a>       <span class="dt">statistic =</span> dim_mw_lor,</span>
+<span id="cb14-36"><a href="#cb14-36"></a>       <span class="dt">R =</span> n_bootstrap,</span>
+<span id="cb14-37"><a href="#cb14-37"></a>       <span class="co"># These are parameters to be passed to dim_mw_lor()</span></span>
+<span id="cb14-38"><a href="#cb14-38"></a>       <span class="dt">outcome_levels =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>,</span>
+<span id="cb14-39"><a href="#cb14-39"></a>       <span class="dt">utilities =</span> nyha_utilities[<span class="dv">1</span><span class="op">:</span><span class="dv">3</span>]</span>
+<span id="cb14-40"><a href="#cb14-40"></a>  )</span></code></pre></div>
+<p>The resulting <code>boot.results</code> object can be summarized using <code>print</code> and we can use <code>boot.ci</code> to obtain confidence intervals.</p>
+<pre><code>## 
+## ORDINARY NONPARAMETRIC BOOTSTRAP
+## 
+## 
+## Call:
+## boot(data = smart_sf, statistic = dim_mw_lor, R = n_bootstrap, 
+##     outcome_levels = 1:3, utilities = nyha_utilities[1:3])
+## 
+## 
+## Bootstrap Statistics :
+##       original        bias    std. error
+## t1* -0.0423287  0.0008878223  0.05518915
+## t2*  0.8947590 -0.0164907445  1.71558505
+## t3*  0.4836542  0.0003317160  0.02150563
+## t4*  0.1256505 -0.0018259877  0.16236708</code></pre>
+<table>
+<caption>Unadjusted estimates with 95% BCa Confidence Intervals.</caption>
+<thead>
+<tr class="header">
+<th align="left">Method</th>
+<th align="right">Estimate</th>
+<th align="right">SE</th>
+<th align="right">L95%</th>
+<th align="right">U95%</th>
+<th align="right">CI Width</th>
+<th align="right">Variance</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Weighted Mean - Unadjusted</td>
+<td align="right">-0.04</td>
+<td align="right">0.06</td>
+<td align="right">-0.17</td>
+<td align="right">0.06</td>
+<td align="right">0.22</td>
+<td align="right">0.0030</td>
+</tr>
+<tr class="even">
+<td align="left">Weighted Mean Utility - Unadjusted</td>
+<td align="right">0.89</td>
+<td align="right">1.72</td>
+<td align="right">-2.36</td>
+<td align="right">4.44</td>
+<td align="right">6.80</td>
+<td align="right">2.9432</td>
+</tr>
+<tr class="odd">
+<td align="left">Mann-Whitney - Unadjusted</td>
+<td align="right">0.48</td>
+<td align="right">0.02</td>
+<td align="right">0.44</td>
+<td align="right">0.52</td>
+<td align="right">0.09</td>
+<td align="right">0.0005</td>
+</tr>
+<tr class="even">
+<td align="left">Log Odds Ratio - Unadjusted</td>
+<td align="right">0.13</td>
+<td align="right">0.16</td>
+<td align="right">-0.17</td>
+<td align="right">0.48</td>
+<td align="right">0.65</td>
+<td align="right">0.0264</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="adjusted-analysis" class="section level1">
+<h1><span class="header-section-number">6</span> Adjusted Analysis</h1>
+<p>We will illustrate adjusted analyses using the <code>drord()</code> function in the <code>drord</code> package. This allows us to calculate the DIM, M-W, and LOR estimands, adjusting for baseline covariates. In order to do this, we need to specify a dataset of covariates, and how these covariates may be related to treatment assignment and the outcome of interest.</p>
+<p>Note that <code>drord</code> actually produces all three estimates in one function.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a>dbp_adjusted_bca &lt;-</span>
+<span id="cb16-2"><a href="#cb16-2"></a><span class="st">  </span><span class="kw">with</span>(smart_sf,</span>
+<span id="cb16-3"><a href="#cb16-3"></a>       <span class="kw">drord</span>(</span>
+<span id="cb16-4"><a href="#cb16-4"></a>         <span class="dt">out =</span> nyha_6m_3lvl,</span>
+<span id="cb16-5"><a href="#cb16-5"></a>         <span class="dt">treat =</span> treatment,</span>
+<span id="cb16-6"><a href="#cb16-6"></a>         <span class="kw">data.frame</span>(renal, copd, walk_test_bl, qol_score_bl, bmi),</span>
+<span id="cb16-7"><a href="#cb16-7"></a>         <span class="dt">ci =</span> <span class="st">&quot;bca&quot;</span>,</span>
+<span id="cb16-8"><a href="#cb16-8"></a>         <span class="dt">nboot =</span> n_bootstrap)</span>
+<span id="cb16-9"><a href="#cb16-9"></a>  )</span>
+<span id="cb16-10"><a href="#cb16-10"></a></span>
+<span id="cb16-11"><a href="#cb16-11"></a><span class="kw">print</span>(dbp_adjusted_bca)</span></code></pre></div>
+<pre><code>## $mann_whitney
+##       est   bca_cil   bca_ciu 
+## 0.4815259 0.4458511 0.5209804 
+## 
+## $log_odds
+##                est    bca_cil    bca_ciu
+## treat1 -0.01519687 -0.2330445 0.19161977
+## treat0 -0.15952402 -0.3849374 0.04973085
+## diff    0.14432715 -0.1649288 0.43858604
+## 
+## $weighted_mean
+##                est    bca_cil    bca_ciu
+## treat1  2.00538585  1.9282323 2.08121166
+## treat0  2.05349450  1.9770929 2.12350979
+## diff   -0.04810865 -0.1536344 0.05375776</code></pre>
+<table>
+<caption>Estimated treatment effects adjusted for history of renal disease and COPD, baseline walk test, heart failure symptoms, and BMI.</caption>
+<thead>
+<tr class="header">
+<th align="left">method</th>
+<th align="left">treatment</th>
+<th align="right">estimate</th>
+<th align="right">se</th>
+<th align="right">lcl</th>
+<th align="right">ucl</th>
+<th align="left">ci</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Weighted Mean - Adjusted</td>
+<td align="left">1</td>
+<td align="right">2.01</td>
+<td align="right">0.04</td>
+<td align="right">1.93</td>
+<td align="right">2.08</td>
+<td align="left">bca</td>
+</tr>
+<tr class="even">
+<td align="left">Weighted Mean - Adjusted</td>
+<td align="left">0</td>
+<td align="right">2.05</td>
+<td align="right">0.04</td>
+<td align="right">1.98</td>
+<td align="right">2.12</td>
+<td align="left">bca</td>
+</tr>
+<tr class="odd">
+<td align="left">Weighted Mean - Adjusted</td>
+<td align="left">diff</td>
+<td align="right">-0.05</td>
+<td align="right">0.05</td>
+<td align="right">-0.15</td>
+<td align="right">0.05</td>
+<td align="left">bca</td>
+</tr>
+<tr class="even">
+<td align="left">Mann-Whitney - Adjusted</td>
+<td align="left">diff</td>
+<td align="right">0.48</td>
+<td align="right">0.02</td>
+<td align="right">0.45</td>
+<td align="right">0.52</td>
+<td align="left">bca</td>
+</tr>
+<tr class="odd">
+<td align="left">Log Odds Ratio - Adjusted</td>
+<td align="left">1</td>
+<td align="right">-0.02</td>
+<td align="right">0.11</td>
+<td align="right">-0.23</td>
+<td align="right">0.19</td>
+<td align="left">bca</td>
+</tr>
+<tr class="even">
+<td align="left">Log Odds Ratio - Adjusted</td>
+<td align="left">0</td>
+<td align="right">-0.16</td>
+<td align="right">0.11</td>
+<td align="right">-0.38</td>
+<td align="right">0.05</td>
+<td align="left">bca</td>
+</tr>
+<tr class="odd">
+<td align="left">Log Odds Ratio - Adjusted</td>
+<td align="left">diff</td>
+<td align="right">0.14</td>
+<td align="right">0.15</td>
+<td align="right">-0.16</td>
+<td align="right">0.44</td>
+<td align="left">bca</td>
+</tr>
+</tbody>
+</table>
+<div id="comparing-adjusted-and-unadjusted-analyses" class="section level2">
+<h2><span class="header-section-number">6.1</span> Comparing Adjusted and Unadjusted Analyses</h2>
+<p>We can compare the unadjusted estimate to the adjusted estimate to determine the potential benefits of covariate adjustment.</p>
+<table>
+<caption>A comparison of estimates and variances (squared standard error) between adjusted and unadjusted analysis. By adjusting for these covariates, a 11.3 to 14.5 percent reduction in variance can be achieved, translating into increased precision or smaller sample size requirements.</caption>
+<thead>
+<tr class="header">
+<th align="left">Estimator</th>
+<th align="left">name</th>
+<th align="right">Adjusted</th>
+<th align="right">Unadjusted</th>
+<th align="right">Adjusted-Unadjusted</th>
+<th align="right">Adjusted/Unadjusted</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Log Odds Ratio</td>
+<td align="left">Estimate</td>
+<td align="right">0.14</td>
+<td align="right">0.13</td>
+<td align="right">0.0187</td>
+<td align="right">1.15</td>
+</tr>
+<tr class="even">
+<td align="left">Log Odds Ratio</td>
+<td align="left">Variance</td>
+<td align="right">0.02</td>
+<td align="right">0.03</td>
+<td align="right">-0.0038</td>
+<td align="right">0.86</td>
+</tr>
+<tr class="odd">
+<td align="left">Mann-Whitney</td>
+<td align="left">Estimate</td>
+<td align="right">0.48</td>
+<td align="right">0.48</td>
+<td align="right">-0.0021</td>
+<td align="right">1.00</td>
+</tr>
+<tr class="even">
+<td align="left">Mann-Whitney</td>
+<td align="left">Variance</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">-0.0001</td>
+<td align="right">0.88</td>
+</tr>
+<tr class="odd">
+<td align="left">Weighted Mean</td>
+<td align="left">Estimate</td>
+<td align="right">-0.05</td>
+<td align="right">-0.04</td>
+<td align="right">-0.0058</td>
+<td align="right">1.14</td>
+</tr>
+<tr class="even">
+<td align="left">Weighted Mean</td>
+<td align="left">Variance</td>
+<td align="right">0.00</td>
+<td align="right">0.00</td>
+<td align="right">-0.0003</td>
+<td align="right">0.89</td>
+</tr>
+</tbody>
+</table>
+<p>Here we see larger estimates in the LOR and DIM estimate: this means the average NYHA class number was larger in the fixed delay comparator group than the algorithmic delay treatment group, and the log odds of having a score at or below a given class was higher among the algorithmic delay treatment group compared to the fixed delay comparator group when averaged across all NYHA class levels.</p>
+</div>
+</div>
+<div id="missing-data" class="section level1">
+<h1><span class="header-section-number">7</span> Missing Data</h1>
+<p>While there are strategies that investigators can utilize to minimize the degree of missing data in clinical trials <span class="citation">(<em>The Prevention and Treatment of Missing Data in Clinical Trials</em> 2010)</span>, missing data are highly likely even in well-conducted studies. When data are missing, all analyses must impose some assumptions about the missing data: unrealistic assumptions can lead to biased estimates of the treatment effect. Additionally, the missing data reduces the precision of estimates and statistical power. While appropriate methods can potentially mitigate some of the bias and reductions in precision due to missing data, these factors can only address missingness related to factors that are observed and appropriately measured.</p>
+<p>The simplest, but least realistic assumption is that data are missing completely at random (MCAR), which assumes that the degree of missing data is unrelated to baseline characteristics <span class="math inline">\((X)\)</span>, treatment assignment <span class="math inline">\((A)\)</span>, or outcomes after randomization <span class="math inline">\((Y)\)</span>. Under this assumption, the sample of complete cases is a simple random sample from the entire study sample: missing data may result in loss of precision and power, but the loss of data does not introduce bias.</p>
+<p>Under the missing at random (MAR) assumption, the degree of missing data may vary with observed participant characteristics, but is assumed to be independent of factors that are not observed. If data cannot be assumed to be MAR, they are referred to as missing not at random (MNAR).</p>
+<p>While the MAR assumption may be more credible than the MCAR assumption, it still may not be the most credible assumption regarding missing data. It is, however, the most general assumption under which we can obtain valid inference without making untestable assumptions about the nature of missing data <span class="citation">(Kenward and Carpenter 2007)</span>. Furthermore, the results of these analyses may strongly depend on these assumptions, which cannot be empirically assessed.</p>
+<div id="missing-data-in-covariates" class="section level2">
+<h2><span class="header-section-number">7.1</span> Missing Data in Covariates</h2>
+<p>Covariates with high degrees of missingness should not be used in adjusted analyses. In situations with very few observations with missing data (<em>specific guidance/recommendations?</em>), a simple approach is a single imputation. With greater proportions of missing data, a single imputation approach may not adequately account for the uncertainty in the imputation process. When bootstrapping analyses, imputation should occur within each bootstrap sample, so that variation in the imputation process is propagated in the analysis.</p>
+<p>While imputation can be based on the observed baseline covariates, no treatment or outcome should be used. This ensures that treatment assignment is unrelated to the baseline covariates, consistent with the assumptions listed above.</p>
+</div>
+<div id="missing-outcome-data" class="section level2">
+<h2><span class="header-section-number">7.2</span> Missing Outcome Data</h2>
+<p>Doubly robust estimators rely on a propensity score model, which models the probability of receiving a treatment based on baseline covariates, and an outcome model, which specifies the distribution of the outcome given the treatment assignment and baseline covariates. These models provide a consistent estimates of the treatment effect if either model is correctly specified.</p>
+<p>There are doubly robust methods available that provide valid inference under the assumption that outcomes are missing at random given treatment assignment and baseline covariates.</p>
+</div>
+</div>
+<div id="choosing-variables-for-adjustment" class="section level1">
+<h1><span class="header-section-number">8</span> Choosing Variables for Adjustment</h1>
+<p>Reduction of bias and variance depends on the association between the baseline covariates and the outcome. When no prior information is available, investigators should choose covariates judiciously based on their knowledge of the trial setting and outcome of interest: this can help identify a priori which variables may provide additional efficiency in adjusted analyses.</p>
+<p>When data are available from previous studies, there are classical statistical and modern prediction methods that can help identify prognostic baseline covariates that may be influential. These methods could include (partial) proportional odds models, multinomial logistic regression, random forests, gradient boosting machines, or other classification tools.</p>
+<table style="width:100%;">
+<caption>Baseline characteristics by 6-month outcome (NYHA Class). Note: the number of observations is suppressed for numeric variables with no missing data. Frequencies are tabulated out of the total number of participants. Missing values for categorical variables are indicated by ’(Missing)`.</caption>
+<colgroup>
+<col width="15%"></col>
+<col width="8%"></col>
+<col width="15%"></col>
+<col width="15%"></col>
+<col width="15%"></col>
+<col width="15%"></col>
+<col width="15%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Variable</th>
+<th align="left">Summary</th>
+<th align="left">(Missing)</th>
+<th align="left">Class I</th>
+<th align="left">Class II</th>
+<th align="left">Class III</th>
+<th align="left">Class IV</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Arm: Algorithm</td>
+<td align="left">N</td>
+<td align="left">44/125 (35.2%)</td>
+<td align="left">68/178 (38.2%)</td>
+<td align="left">155/466 (33.3%)</td>
+<td align="left">58/199 (29.1%)</td>
+<td align="left">7/12 (58.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Arm: Echo</td>
+<td align="left">N</td>
+<td align="left">40/125 (32.0%)</td>
+<td align="left">55/178 (30.9%)</td>
+<td align="left">148/466 (31.8%)</td>
+<td align="left">76/199 (38.2%)</td>
+<td align="left">4/12 (33.3%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Arm: Fixed</td>
+<td align="left">N</td>
+<td align="left">41/125 (32.8%)</td>
+<td align="left">55/178 (30.9%)</td>
+<td align="left">163/466 (35.0%)</td>
+<td align="left">65/199 (32.7%)</td>
+<td align="left">1/12 (8.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Age (y)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">68.4 (12.0)</td>
+<td align="left">65.6 (10.6)</td>
+<td align="left">65.9 (10.5)</td>
+<td align="left">65.5 (11.9)</td>
+<td align="left">64.6 (9.5)</td>
+</tr>
+<tr class="odd">
+<td align="left">Age (y)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">61.0 / 69.0 / 78.0</td>
+<td align="left">58.2 / 67.0 / 73.0</td>
+<td align="left">59.0 / 66.0 / 74.0</td>
+<td align="left">58.0 / 67.0 / 75.0</td>
+<td align="left">57.0 / 60.0 / 75.2</td>
+</tr>
+<tr class="even">
+<td align="left">Sex - Female</td>
+<td align="left">N</td>
+<td align="left">37/125 (29.6%)</td>
+<td align="left">52/178 (29.2%)</td>
+<td align="left">148/466 (31.8%)</td>
+<td align="left">75/199 (37.7%)</td>
+<td align="left">2/12 (16.7%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Sex - Male</td>
+<td align="left">N</td>
+<td align="left">88/125 (70.4%)</td>
+<td align="left">126/178 (70.8%)</td>
+<td align="left">318/466 (68.2%)</td>
+<td align="left">124/199 (62.3%)</td>
+<td align="left">10/12 (83.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">BMI (kg/m^2)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">29.3 (7.3)</td>
+<td align="left">28.9 (5.1)</td>
+<td align="left">29.3 (5.9)</td>
+<td align="left">30.7 (7.1)</td>
+<td align="left">33.9 (7.1)</td>
+</tr>
+<tr class="odd">
+<td align="left">BMI (kg/m^2)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">23.9 / 27.3 / 35.0</td>
+<td align="left">25.3 / 28.4 / 31.6</td>
+<td align="left">25.4 / 28.5 / 31.9</td>
+<td align="left">25.9 / 29.8 / 34.6</td>
+<td align="left">28.4 / 33.8 / 38.1</td>
+</tr>
+<tr class="even">
+<td align="left">SBP (mm Hg)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">123.4 (22.2)</td>
+<td align="left">122.9 (19.9)</td>
+<td align="left">123.5 (19.9)</td>
+<td align="left">124.1 (20.7)</td>
+<td align="left">116.3 (20.0)</td>
+</tr>
+<tr class="odd">
+<td align="left">SBP (mm Hg)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">106.0 / 122.0 / 138.0</td>
+<td align="left">108.2 / 120.0 / 136.0</td>
+<td align="left">110.0 / 121.0 / 134.8</td>
+<td align="left">110.0 / 123.0 / 134.0</td>
+<td align="left">102.0 / 113.5 / 127.5</td>
+</tr>
+<tr class="even">
+<td align="left">DBP (mm Hg)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">69.0 (13.1)</td>
+<td align="left">71.5 (12.5)</td>
+<td align="left">71.3 (13.1)</td>
+<td align="left">70.9 (13.1)</td>
+<td align="left">68.0 (12.9)</td>
+</tr>
+<tr class="odd">
+<td align="left">DBP (mm Hg)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">60.0 / 68.0 / 78.0</td>
+<td align="left">63.0 / 70.0 / 80.0</td>
+<td align="left">63.0 / 70.0 / 79.8</td>
+<td align="left">60.0 / 70.0 / 80.0</td>
+<td align="left">58.5 / 68.5 / 73.8</td>
+</tr>
+<tr class="even">
+<td align="left">Systemic HTN</td>
+<td align="left">N</td>
+<td align="left">89/125 (71.2%)</td>
+<td align="left">110/178 (61.8%)</td>
+<td align="left">328/466 (70.4%)</td>
+<td align="left">143/199 (71.9%)</td>
+<td align="left">9/12 (75.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Pulmonary HTN</td>
+<td align="left">N</td>
+<td align="left">10/125 (8.0%)</td>
+<td align="left">4/178 (2.2%)</td>
+<td align="left">17/466 (3.6%)</td>
+<td align="left">12/199 (6.0%)</td>
+<td align="left">1/12 (8.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">N</td>
+<td align="left">125/125 (100.0%)</td>
+<td align="left">178/178 (100.0%)</td>
+<td align="left">466/466 (100.0%)</td>
+<td align="left">198/199 (99.5%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">72.2 (13.4)</td>
+<td align="left">70.1 (12.2)</td>
+<td align="left">70.5 (11.7)</td>
+<td align="left">72.8 (13.3)</td>
+<td align="left">74.2 (10.8)</td>
+</tr>
+<tr class="even">
+<td align="left">Resting HR (beats/min)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">64.0 / 71.0 / 80.0</td>
+<td align="left">62.0 / 68.0 / 78.0</td>
+<td align="left">62.2 / 69.0 / 77.8</td>
+<td align="left">64.0 / 71.0 / 82.0</td>
+<td align="left">66.0 / 70.0 / 82.5</td>
+</tr>
+<tr class="odd">
+<td align="left">LBBB Present</td>
+<td align="left">N</td>
+<td align="left">93/125 (74.4%)</td>
+<td align="left">137/178 (77.0%)</td>
+<td align="left">370/466 (79.4%)</td>
+<td align="left">146/199 (73.4%)</td>
+<td align="left">7/12 (58.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Ischemic Origin</td>
+<td align="left">N</td>
+<td align="left">74/125 (59.2%)</td>
+<td align="left">90/178 (50.6%)</td>
+<td align="left">262/466 (56.2%)</td>
+<td align="left">120/199 (60.3%)</td>
+<td align="left">9/12 (75.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Non-Ischemic Origin</td>
+<td align="left">N</td>
+<td align="left">51/125 (40.8%)</td>
+<td align="left">88/178 (49.4%)</td>
+<td align="left">203/466 (43.6%)</td>
+<td align="left">79/199 (39.7%)</td>
+<td align="left">3/12 (25.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">Origin (Missing)</td>
+<td align="left">N</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left">1/466 (0.2%)</td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left">Hx PAF</td>
+<td align="left">N</td>
+<td align="left">20/125 (16.0%)</td>
+<td align="left">18/178 (10.1%)</td>
+<td align="left">54/466 (11.6%)</td>
+<td align="left">26/199 (13.1%)</td>
+<td align="left">2/12 (16.7%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx Diabetes</td>
+<td align="left">N</td>
+<td align="left">50/125 (40.0%)</td>
+<td align="left">57/178 (32.0%)</td>
+<td align="left">171/466 (36.7%)</td>
+<td align="left">87/199 (43.7%)</td>
+<td align="left">5/12 (41.7%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Hx Renal Disease</td>
+<td align="left">N</td>
+<td align="left">29/125 (23.2%)</td>
+<td align="left">18/178 (10.1%)</td>
+<td align="left">64/466 (13.7%)</td>
+<td align="left">43/199 (21.6%)</td>
+<td align="left">4/12 (33.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx COPD</td>
+<td align="left">N</td>
+<td align="left">26/125 (20.8%)</td>
+<td align="left">11/178 (6.2%)</td>
+<td align="left">66/466 (14.2%)</td>
+<td align="left">45/199 (22.6%)</td>
+<td align="left">3/12 (25.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Hx CABG</td>
+<td align="left">N</td>
+<td align="left">46/125 (36.8%)</td>
+<td align="left">53/178 (29.8%)</td>
+<td align="left">144/466 (30.9%)</td>
+<td align="left">73/199 (36.7%)</td>
+<td align="left">5/12 (41.7%)</td>
+</tr>
+<tr class="even">
+<td align="left">Hx CABG (Missing)</td>
+<td align="left">N</td>
+<td align="left">1/125 (0.8%)</td>
+<td align="left"></td>
+<td align="left">1/466 (0.2%)</td>
+<td align="left">3/199 (1.5%)</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left">Hx Valve Replacement</td>
+<td align="left">N</td>
+<td align="left">7/125 (5.6%)</td>
+<td align="left">7/178 (3.9%)</td>
+<td align="left">24/466 (5.2%)</td>
+<td align="left">15/199 (7.5%)</td>
+<td align="left">1/12 (8.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">BL NYHA (Missing)</td>
+<td align="left">N</td>
+<td align="left"></td>
+<td align="left">1/178 (0.6%)</td>
+<td align="left">1/466 (0.2%)</td>
+<td align="left">1/199 (0.5%)</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left">BL NYHA I</td>
+<td align="left">N</td>
+<td align="left"></td>
+<td align="left">1/178 (0.6%)</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left">BL NYHA II</td>
+<td align="left">N</td>
+<td align="left">3/125 (2.4%)</td>
+<td align="left">7/178 (3.9%)</td>
+<td align="left">12/466 (2.6%)</td>
+<td align="left">2/199 (1.0%)</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left">BL NYHA III</td>
+<td align="left">N</td>
+<td align="left">119/125 (95.2%)</td>
+<td align="left">165/178 (92.7%)</td>
+<td align="left">446/466 (95.7%)</td>
+<td align="left">187/199 (94.0%)</td>
+<td align="left">8/12 (66.7%)</td>
+</tr>
+<tr class="even">
+<td align="left">BL NYHA IV</td>
+<td align="left">N</td>
+<td align="left">3/125 (2.4%)</td>
+<td align="left">4/178 (2.2%)</td>
+<td align="left">7/466 (1.5%)</td>
+<td align="left">9/199 (4.5%)</td>
+<td align="left">4/12 (33.3%)</td>
+</tr>
+<tr class="odd">
+<td align="left">LVESV (mL)</td>
+<td align="left">N</td>
+<td align="left">112/125 (89.6%)</td>
+<td align="left">175/178 (98.3%)</td>
+<td align="left">466/466 (100.0%)</td>
+<td align="left">195/199 (98.0%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">LVESV (mL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">127.2 (53.6)</td>
+<td align="left">134.6 (68.4)</td>
+<td align="left">130.2 (62.6)</td>
+<td align="left">130.3 (67.5)</td>
+<td align="left">126.5 (47.5)</td>
+</tr>
+<tr class="odd">
+<td align="left">LVESV (mL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">88.8 / 115.5 / 160.0</td>
+<td align="left">82.5 / 118.0 / 160.5</td>
+<td align="left">84.0 / 118.5 / 157.0</td>
+<td align="left">84.5 / 117.0 / 143.5</td>
+<td align="left">97.5 / 124.5 / 163.5</td>
+</tr>
+<tr class="even">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">N</td>
+<td align="left">123/125 (98.4%)</td>
+<td align="left">178/178 (100.0%)</td>
+<td align="left">465/466 (99.8%)</td>
+<td align="left">199/199 (100.0%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">152.0 (20.8)</td>
+<td align="left">153.0 (20.8)</td>
+<td align="left">154.0 (20.4)</td>
+<td align="left">149.3 (18.2)</td>
+<td align="left">139.8 (12.7)</td>
+</tr>
+<tr class="even">
+<td align="left">QRS Duration (ms)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">134.0 / 152.0 / 166.0</td>
+<td align="left">138.0 / 152.0 / 165.5</td>
+<td align="left">139.0 / 154.0 / 166.0</td>
+<td align="left">136.0 / 148.0 / 160.0</td>
+<td align="left">131.5 / 137.0 / 146.0</td>
+</tr>
+<tr class="odd">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">N</td>
+<td align="left">122/125 (97.6%)</td>
+<td align="left">176/178 (98.9%)</td>
+<td align="left">461/466 (98.9%)</td>
+<td align="left">198/199 (99.5%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">219.1 (123.7)</td>
+<td align="left">321.9 (117.0)</td>
+<td align="left">285.0 (118.7)</td>
+<td align="left">234.4 (118.6)</td>
+<td align="left">105.0 (87.7)</td>
+</tr>
+<tr class="odd">
+<td align="left">6m Walk Distance (m)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">122.8 / 203.0 / 303.6</td>
+<td align="left">254.4 / 320.0 / 394.8</td>
+<td align="left">200.6 / 290.8 / 362.7</td>
+<td align="left">149.8 / 243.2 / 308.8</td>
+<td align="left">45.6 / 70.1 / 152.6</td>
+</tr>
+<tr class="even">
+<td align="left">Uses ACE Inhibitors</td>
+<td align="left">N</td>
+<td align="left">81/125 (64.8%)</td>
+<td align="left">119/178 (66.9%)</td>
+<td align="left">314/466 (67.4%)</td>
+<td align="left">125/199 (62.8%)</td>
+<td align="left">6/12 (50.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses ARBs</td>
+<td align="left">N</td>
+<td align="left">26/125 (20.8%)</td>
+<td align="left">39/178 (21.9%)</td>
+<td align="left">99/466 (21.2%)</td>
+<td align="left">34/199 (17.1%)</td>
+<td align="left">4/12 (33.3%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses Diuretics</td>
+<td align="left">N</td>
+<td align="left">110/125 (88.0%)</td>
+<td align="left">133/178 (74.7%)</td>
+<td align="left">383/466 (82.2%)</td>
+<td align="left">163/199 (81.9%)</td>
+<td align="left">10/12 (83.3%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses CCBs</td>
+<td align="left">N</td>
+<td align="left">7/125 (5.6%)</td>
+<td align="left">9/178 (5.1%)</td>
+<td align="left">37/466 (7.9%)</td>
+<td align="left">13/199 (6.5%)</td>
+<td align="left">3/12 (25.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses <span class="math inline">\(\beta\)</span>Bs</td>
+<td align="left">N</td>
+<td align="left">115/125 (92.0%)</td>
+<td align="left">167/178 (93.8%)</td>
+<td align="left">422/466 (90.6%)</td>
+<td align="left">184/199 (92.5%)</td>
+<td align="left">11/12 (91.7%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Uses Spironolactone</td>
+<td align="left">N</td>
+<td align="left">41/125 (32.8%)</td>
+<td align="left">50/178 (28.1%)</td>
+<td align="left">148/466 (31.8%)</td>
+<td align="left">63/199 (31.7%)</td>
+<td align="left">2/12 (16.7%)</td>
+</tr>
+<tr class="even">
+<td align="left">Uses Digoxin</td>
+<td align="left">N</td>
+<td align="left">30/125 (24.0%)</td>
+<td align="left">34/178 (19.1%)</td>
+<td align="left">92/466 (19.7%)</td>
+<td align="left">56/199 (28.1%)</td>
+<td align="left">4/12 (33.3%)</td>
+</tr>
+<tr class="odd">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">N</td>
+<td align="left">123/125 (98.4%)</td>
+<td align="left">175/178 (98.3%)</td>
+<td align="left">455/466 (97.6%)</td>
+<td align="left">195/199 (98.0%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="even">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">26.0 (12.9)</td>
+<td align="left">21.9 (9.6)</td>
+<td align="left">23.9 (13.0)</td>
+<td align="left">26.1 (14.9)</td>
+<td align="left">35.8 (22.4)</td>
+</tr>
+<tr class="odd">
+<td align="left">BUN (mg/dL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">16.3 / 23.0 / 32.5</td>
+<td align="left">16.0 / 20.0 / 26.0</td>
+<td align="left">16.0 / 20.0 / 28.0</td>
+<td align="left">16.0 / 22.0 / 31.0</td>
+<td align="left">18.2 / 30.0 / 50.8</td>
+</tr>
+<tr class="even">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">N</td>
+<td align="left">123/125 (98.4%)</td>
+<td align="left">178/178 (100.0%)</td>
+<td align="left">461/466 (98.9%)</td>
+<td align="left">195/199 (98.0%)</td>
+<td align="left">12/12 (100.0%)</td>
+</tr>
+<tr class="odd">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">Mean (SD)</td>
+<td align="left">1.4 (0.9)</td>
+<td align="left">1.2 (0.4)</td>
+<td align="left">1.2 (0.7)</td>
+<td align="left">1.4 (0.9)</td>
+<td align="left">1.7 (0.6)</td>
+</tr>
+<tr class="even">
+<td align="left">Creatinine (mg/dL)</td>
+<td align="left">25%/50%/75%</td>
+<td align="left">0.9 / 1.2 / 1.6</td>
+<td align="left">0.9 / 1.1 / 1.3</td>
+<td align="left">0.9 / 1.1 / 1.4</td>
+<td align="left">0.9 / 1.2 / 1.6</td>
+<td align="left">1.2 / 1.5 / 2.0</td>
+</tr>
+</tbody>
+</table>
 </div>
 <div id="appendix" class="section level1">
-<h1><span class="header-section-number">5</span> Appendix</h1>
+<h1><span class="header-section-number">9</span> Appendix</h1>
 <div id="abbreviations" class="section level2">
-<h2><span class="header-section-number">5.1</span> Abbreviations</h2>
+<h2><span class="header-section-number">9.1</span> Abbreviations</h2>
 <ul>
 <li>Medical
 <ul>
-<li><code>AV</code>: Atrio-ventricular</li>
-<li><code>CRT</code>: Cardiac Resynchronization Therapy</li>
-<li><code>HF</code>: Heart Failure</li>
-<li><code>NYHA</code>: New York Heart Association</li>
+<li>AV: Atrioventricular</li>
+<li>CRT: Cardiac Resynchronization Therapy</li>
+<li>HF: Heart Failure</li>
+<li>LV: Left Ventricular</li>
+<li>NYHA: New York Heart Association</li>
 </ul></li>
 <li>Statistical
 <ul>
-<li><code>DIM</code>: Difference in Means</li>
-<li><code>DR</code>: Doubly Robust</li>
-<li><code>IID</code>: Independent and Identically Distributed</li>
-<li><code>ITT</code>: Intention to Treat</li>
-<li><code>LOR</code>: Log Odds Ratio</li>
-<li><code>MW</code>: Mann-Whitney</li>
+<li>DIM: Difference in Means</li>
+<li>DR: Doubly Robust</li>
+<li>IID: Independent and Identically Distributed</li>
+<li>ITT: Intention to Treat</li>
+<li>LOR: Log Odds Ratio</li>
+<li>MW: Mann-Whitney</li>
 </ul></li>
 </ul>
 </div>
 <div id="software-in-use" class="section level2">
-<h2><span class="header-section-number">5.2</span> Software in Use</h2>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">sessionInfo</span>()</span></code></pre></div>
+<h2><span class="header-section-number">9.2</span> Software in Use</h2>
 <pre><code>## R version 4.0.2 (2020-06-22)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
-## Running under: Windows 10 x64 (build 19042)
+## Running under: Windows 10 x64 (build 18363)
 ## 
 ## Matrix products: default
 ## 
@@ -673,22 +2181,66 @@ summary {
 ## [5] LC_TIME=English_United States.1252    
 ## 
 ## attached base packages:
-## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## [1] splines   stats     graphics  grDevices utils     datasets  methods  
+## [8] base     
+## 
+## other attached packages:
+##  [1] gridExtra_2.3  ggmosaic_0.2.0 ggplot2_3.3.3  openssl_1.4.3  drord_1.0.0   
+##  [6] stringr_1.4.0  tidyr_1.1.2    dplyr_1.0.3    knitr_1.31     boot_1.3-25   
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] compiler_4.0.2  magrittr_1.5    tools_4.0.2     htmltools_0.5.0
-##  [5] yaml_2.2.1      stringi_1.4.6   rmarkdown_2.3   knitr_1.29     
-##  [9] stringr_1.4.0   xfun_0.19       digest_0.6.25   rlang_0.4.7    
-## [13] evaluate_0.14</code></pre>
+##  [1] tidyselect_1.1.0    xfun_0.20           purrr_0.3.4        
+##  [4] lattice_0.20-41     colorspace_2.0-0    vctrs_0.3.6        
+##  [7] generics_0.1.0      htmltools_0.5.1.1   stats4_4.0.2       
+## [10] viridisLite_0.3.0   yaml_2.2.1          plotly_4.9.3       
+## [13] rlang_0.4.10        pillar_1.4.7        glue_1.4.2         
+## [16] withr_2.4.1         DBI_1.1.1           lifecycle_0.2.0    
+## [19] plyr_1.8.6          munsell_0.5.0       gtable_0.3.0       
+## [22] htmlwidgets_1.5.3   VGAM_1.1-5          evaluate_0.14      
+## [25] highr_0.8           Rcpp_1.0.6          scales_1.1.1       
+## [28] jsonlite_1.7.2      askpass_1.1         digest_0.6.27      
+## [31] stringi_1.5.3       ordinal_2019.12-10  numDeriv_2016.8-1.1
+## [34] grid_4.0.2          tools_4.0.2         magrittr_2.0.1     
+## [37] lazyeval_0.2.2      productplots_0.1.1  tibble_3.0.5       
+## [40] ucminf_1.1-4        crayon_1.4.0        pkgconfig_2.0.3    
+## [43] MASS_7.3-53         ellipsis_0.3.1      Matrix_1.2-18      
+## [46] data.table_1.13.6   assertthat_0.2.1    rmarkdown_2.6      
+## [49] httr_1.4.2          R6_2.5.0            compiler_4.0.2</code></pre>
 </div>
 <div id="resources-for-using-r" class="section level2">
-<h2><span class="header-section-number">5.3</span> Resources for Using R</h2>
+<h2><span class="header-section-number">9.3</span> Resources for Using R</h2>
 <ul>
 <li><a href="https://rstudio.com/resources/cheatsheets/">RStudio Cheat Sheets</a></li>
 <li><a href="https://education.rstudio.com/">Rstudio Educational Resources</a></li>
 <li><a href="https://r4ds.had.co.nz/">R for Data Science</a></li>
 <li><a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">R Project: An Introduction to R</a></li>
 </ul>
+</div>
+<div id="references" class="section level2 unnumbered">
+<h2>References</h2>
+<div id="refs" class="references">
+<div id="ref-benkeser_covid">
+<p>Benkeser, David, Iván Dı́az, Alex Luedtke, Jodi Segal, Daniel Scharfstein, and Michael Rosenblum. 2020. “Improving Precision and Power in Randomized Trials for COVID-19 Treatments Using Covariate Adjustment, for Binary, Ordinal, and Time-to-Event Outcomes.” <em>Biometrics</em>, October. <a href="https://doi.org/10.1111/biom.13377">https://doi.org/10.1111/biom.13377</a>.</p>
+</div>
+<div id="ref-diaz_ordinal">
+<p>Dı́az, Iván, Elizabeth Colantuoni, and Michael Rosenblum. 2015. “Enhanced Precision in the Analysis of Randomized Trials with Ordinal Outcomes.” <em>Biometrics</em> 72 (2): 422–31. <a href="https://doi.org/10.1111/biom.12450">https://doi.org/10.1111/biom.12450</a>.</p>
+</div>
+<div id="ref-smartav_results">
+<p>Ellenbogen, K. A., M. R. Gold, T. E. Meyer, I. Fernndez Lozano, S. Mittal, A. D. Waggoner, B. Lemke, et al. 2010. “Primary results from the SmartDelay determined AV optimization: a comparison to other AV delay methods used in cardiac resynchronization therapy (SMART-AV) trial: a randomized trial comparing empirical, echocardiography-guided, and algorithmic atrioventricular delay programming in cardiac resynchronization therapy.” <em>Circulation</em> 122 (25): 2660–8.</p>
+</div>
+<div id="ref-kenward_carpenter_mi">
+<p>Kenward, Michael G, and James Carpenter. 2007. “Multiple Imputation: Current Perspectives.” <em>Statistical Methods in Medical Research</em> 16 (3): 199–218. <a href="https://doi.org/10.1177/0962280206075304">https://doi.org/10.1177/0962280206075304</a>.</p>
+</div>
+<div id="ref-nyha_description">
+<p>Raphael, C., C. Briscoe, J. Davies, Z. Ian Whinnett, C. Manisty, R. Sutton, J. Mayet, and D. P. Francis. 2007. “Limitations of the New York Heart Association functional classification system and self-reported walking distances in chronic heart failure.” <em>Heart</em> 93 (4): 476–82.</p>
+</div>
+<div id="ref-smartav_design">
+<p>Stein, K. M., K. A. Ellenbogen, M. R. Gold, B. Lemke, I. F. Lozano, S. Mittal, F. G. Spinale, J. E. Van Eyk, A. D. Waggoner, and T. E. Meyer. 2010. “SmartDelay determined AV optimization: a comparison of AV delay methods used in cardiac resynchronization therapy (SMART-AV): rationale and design.” <em>Pacing Clin Electrophysiol</em> 33 (1): 54–63.</p>
+</div>
+<div id="ref-missing_data_clinical_trials">
+<p><em>The Prevention and Treatment of Missing Data in Clinical Trials</em>. 2010. National Academies Press. <a href="https://doi.org/10.17226/12955">https://doi.org/10.17226/12955</a>.</p>
+</div>
+</div>
 </div>
 </div>
 
@@ -701,7 +2253,7 @@ summary {
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();

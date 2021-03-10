@@ -1,7 +1,9 @@
 ---
 title: "Covariate Adjustment for Ordinal Outcomes in Clinical Trials"
-author: "Bingkai Wang, Josh Betz, and Michael Rosenblum"
+author: "Josh Betz, Bingkai Wang, and Michael Rosenblum"
 date: "`r format(Sys.time(), '%Y-%m-%d %I:%M')`"
+header-includes:
+   - \usepackage{amsmath}
 output:
   html_document:
     toc: true # table of content true
@@ -10,43 +12,391 @@ output:
     theme: united
     highlight: tango
     # css: my.css   # For custom CSS - In same folder
-# bibliography: bibliography.bib # For Bibliography - In same folder
+bibliography: bibliography.bib # For Bibliography - In same folder
 # csl: biomed-central.csl # For citation style - In same folder
 ---
 
+```{r Report_Setup, echo = FALSE, message = FALSE}
+suppressWarnings({
+  library(boot)
+  library(knitr)
+  library(dplyr)
+  library(tidyr)
+  library(stringr)
+  library(drord)
+  library(openssl)
+  library(ggplot2)
+  library(ggmosaic)
+  library(gridExtra)
+  library(splines)
+})
+
+set.seed(28934)
+
+## File Structure
+root.dir <- 
+  file.path("S:/jbetz2/LOE/rosenblum/smart-av")
+smart.rda <- "SMART-AV_v0.0_2016-09-09.rda"
+
+source.dir <-
+  file.path("S:", "jbetz2", "LOE", "rosenblum", "smart-av", "code", 
+            "Adjusted_ordinal")
+source.file <- "unadjusted_estimators_210210.r"
+
+n_bootstrap <- 10000 # Number of bootstrap replicates
+
+## Create Paths
+data.dir <-
+  file.path(root.dir, "data")
+smart.rda.path <-
+  file.path(data.dir, smart.rda)
+
+load(file = smart.rda.path)
+
+source.path <-
+  file.path(source.dir, source.file)
+
+source(source.path)
+
+smart <- 
+  smart %>%
+  dplyr::mutate(
+    lbbb =
+      case_when(
+        lbbb %in% "LBBB Absent" ~ 0,
+        lbbb %in% "LBBB Present" ~ 1
+      ),
+    nyha_bl_f = 
+      factor(
+        x = nyha_bl,
+        levels = 1:4),
+    nyha_3m_f = 
+      factor(
+        x = nyha_3m,
+        levels = 1:4),
+    nyha_6m_f = 
+      factor(
+        x = nyha_6m,
+        levels = 1:4)
+    ) %>%
+  tidyr::as_tibble()
+
+### Graphics and Report Options ################################################
+echo_yn <- FALSE # Hide code by default
+
+# Image Sizes
+default_h <- 8
+default_w <- 8
+
+default_h_2 <- 2*default_h
+default_h_3 <- 3*default_h
+
+default_w_2 <- 2*default_w
+default_w_3 <- 3*default_w
+
+
+axis_text_size <- 16
+axis_title_size <- 16
+facet_text_size <- 18
+legend_text_size <- 17
+legend_title_size <- 16
+plot_title_size <- 20
+
+
+my_theme <-
+  theme_bw() +
+  theme(
+    axis.text.x =
+      element_text(size = axis_text_size),
+    
+    axis.text.y =
+      element_text(size = axis_text_size),
+    
+    axis.title.x =
+      element_text(size = axis_title_size,
+                   face = "bold"),
+    
+    axis.title.y =
+      element_text(size = axis_title_size,
+                   face = "bold"),
+    
+    strip.text.x =
+      element_text(size = facet_text_size,
+                   face = "bold"),
+
+    strip.text.y =
+      element_text(size = facet_text_size,
+                   face = "bold"),
+    
+    plot.title =
+      element_text(size = plot_title_size,
+                   face = "bold"),
+    
+    legend.text =
+      element_text(size = legend_text_size),
+    
+    legend.title =
+      element_text(size = legend_title_size),
+    
+    legend.position = "bottom",
+    
+    legend.direction = "horizontal",
+    
+    legend.box = "vertical"
+    )
+
+### Set Default Options ########################################################
+options(knitr.kable.NA = "")
+
+knitr::opts_chunk$set(
+  echo = echo_yn,
+  results = "markup",
+  message = FALSE,
+  warning = FALSE,
+  fig.width = default_w,
+  fig.height = default_h,
+  fig.align = "center"
+  ) 
+```
+
+
+```{r Supplementary_Code}
+### n_d_percent ################################################################
+# Takes a numerator (n) and denominator (d), produces a string: "n/d (p%)" where
+# p is the percentage (n/d) x 100 to a specified number of decimals.
+n_d_percent <-
+  function(n, d, n.decimals = 1, format = "g") {
+    pct <- sprintf(fmt = paste0("%1.", n.decimals, "f"),
+                   100*n/d)
+    
+    ifelse(test = n > 0 & identical(as.numeric(pct), 0),
+           yes = paste0("< ", 
+                        sprintf(fmt = paste0("%1.", max(n.decimals - 1, 0), "f"),
+                                10^(-n.decimals))),
+           no = pct)
+    
+    paste0(n, "/", d, " (", pct, "%)")
+  }
+
+# extract_legend - get a legend from a ggplot2 plot
+extract_legend <- function(a.gplot){ 
+  tmp <- ggplot_gtable(ggplot_build(a.gplot)) 
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box") 
+  tmp$grobs[[leg]] 
+}
+
+
+drord_table <-
+  function(drord_object) {
+    
+    ci_method <- drord_object$ci
+    
+    wm_ci <- get(x = ci_method, pos = drord_object$weighted_mean$ci)
+    mw_ci <- get(x = ci_method, pos = drord_object$mann_whitney$ci)
+    lor_ci <- get(x = ci_method, pos = drord_object$log_odds$ci)
+    
+    
+    with(drord_object,
+         rbind(
+           
+           data.frame(
+           method = "Weighted Mean - Adjusted",
+           treatment =
+             gsub(pattern = paste0(ci_method, "_ci_(trt)?"),
+                  x = rownames(wm_ci),
+                  replacement = ""),
+           estimate = weighted_mean$est$est,
+           se = (wm_ci[, 2]- weighted_mean$est$est)/qnorm(p = 1 - alpha/2),
+           lcl = wm_ci[, 1],
+           ucl = wm_ci[, 2],
+           ci = ci_method,
+           row.names = NULL),
+           
+           data.frame(
+           method = "Mann-Whitney - Adjusted",
+           treatment = "diff",
+           estimate = mann_whitney$est,
+           se = (mw_ci[2]- mann_whitney$est)/qnorm(p = 1 - alpha/2),
+           lcl = mw_ci[1],
+           ucl = mw_ci[2],
+           ci = ci_method,
+           row.names = NULL),
+           
+           data.frame(
+           method = "Log Odds Ratio - Adjusted",
+           treatment =
+             gsub(pattern = paste0(ci_method, "_ci_(trt)?"),
+                  x = rownames(lor_ci),
+                  replacement = ""),
+           estimate = log_odds$est,
+           se = (lor_ci[, 2]- log_odds$est)/qnorm(p = 1 - alpha/2),
+           lcl = lor_ci[, 1],
+           ucl = lor_ci[, 2],
+           ci = ci_method,
+           row.names = NULL)
+         )
+    )
+  }
+```
+
+
+
+
 # Using This Tutorial
 
-This tutorial is to assist analysts in understanding and implementing analyses for ordinal outcomes in randomized controlled trials using actual data from clinical trials. The data in this tutorial come from the SMART-AV trial, a three-arm parallel group trial assessing different treatment strategies for cardiac resynchronization therapy in patients with moderate to severe heart failure.
+This tutorial is to assist analysts in understanding and implementing analyses for ordinal outcomes in randomized controlled trials using actual data from clinical trials. Particular emphasis is placed on adjusted analyses, which take into account variables measured prior to randomization that are also associated with the primary outcome. Adjusting for these variables, called covariates, can result in more precise estimates of treatment effects, as well as account for covariate imbalances between treatment arms that could confound results. Both unadjusted and adjusted analyses are illustrated using data from the SMART-AV trial, a three-arm parallel group trial assessing different treatment strategies for cardiac resynchronization therapy in patients with moderate to severe heart failure.
 
-In the first section, the trial setting is discussed, laying out the design of the trial, the data collected at baseline and at its follow-up visits. For those new to R, a quick orientation to using R is given, along with the software utilized in this tutorial. The format of the data required for analysis is illustrated.
+In the first section, we discuss the potential quantities one might want to estimate from a randomized trial. The description of each estimand is given, along with methodologic considerations, and further references for study. In the second section, the SMART-AV trial setting is discussed, laying out the design of the trial, the data collected at baseline and at its follow-up visits. For those new to R, a quick orientation to using R is given, along with the software utilized in this tutorial. The format of the data required for analysis is illustrated. In the third section, we provide worked examples of analyzing ordinal trial outcomes, including examples of covariate adjustment, which can provide improved precision and mitigate residual imbalance in baseline characteristics between arms of a randomized trial.
 
-In the second section, we discuss the potential quantities one might want to estimate from a randomized trial. The description of each estimand is given, along with methodologic considerations, and further references for study.
+This tutorial largely follows the notation and recommendations of Benkeser and colleagues [-@benkeser_covid]. The appendix contains a list of abbreviations used, both medical and statistical, as well as further resources for using R. 
 
-In the third section, we provide worked examples of analyzing ordinal trial outcomes, including examples of covariate adjustment, which can provide improved precision and mitigate residual imbalance in baseline characteristics between arms of a randomized trial.
 
-The appendix contains a list of abbreviations used, both medical and statistical, as well as further resources for using R.
+
+
+# Analysis of Ordinal Outcomes
+
+Here we will demonstrate how to analyze ordinal data from clinical trials, both with and without adjustment for baseline covariates. Adjusted analyses have two potential benefits, mitigation of confounding and improved precision of estimates.
+
+When we randomly allocate treatment to participants, this will tend to produce experimental groups that are comparable to one another across both observed and unobserved factors. However, in any given treatment allocation, there will be some degree of imbalance in the distribution of baseline covariates between treatment groups. When a variable is a strong predictor of the outcome and is imbalanced across treatment arms, it represents a potential confounding variable. By adjusting analyses for known confounding variables, the effect of confounding can be mitigated.
+
+An additional benefit of adjustment is that adjusted analyses can be more efficient: compared to an unadjusted analysis, an adjusted analysis may have a lower required sample size to detect a given treatment effect if it exists, or provide greater precision (shorter confidence interval widths and higher power) for the same sample size and treatment effect.
+
+
+
+
+## Notation
+
+
+Let $A$ denote a binary treatment assignment: $A = 1$ indicates assignment to receive the treatment of interest, and $A = 0$ indicates assignment to the control or comparator group. Let $Y$ denote the ordinal outcome of interest, and $X$ denote a vector of baseline covariates. Treatment is assumed to be assigned independently of baseline characteristics (i.e. $A \perp X$). Each participant's data is assumed to be independent, identically distributed (iid) draws from an unknown distribution.
+
+Note that all analyses follow the intention-to-treat (ITT) principle: all participants are analyzed according to how they were randomized, irrespective of what treatment was received during the trial. 
+
+The outcome $Y$ is assumed to have $k$ ordered categories. For each outcome category $j \in \{1, \ldots, K\}$, the cumulative distribution function of $Y$ given treatment $A$ is denoted as $Pr\{Y \le j\} = F(j \vert a)$, and the probability mass function of $Y$ given treatment $A$ is $Pr\{Y = j\} = f(j \vert a) = F(j \vert a) - F(j-1 \vert a)$. 
+
+Although this notation involves numeric labels for levels, this is merely to simplify notation. Clarifications will be made as needed when distinguishing between outcomes with and without a numeric levels.
+
+There are many estimands we may be interested in estimating, including the difference in mean outcomes, the Mann-Whitney estimand, and the log odds ratio.
+
+
+
+
+## DIM: Difference in Mean Outcomes
+
+One potential estimand is the differences in the mean outcome between treatment arms, denoted $\delta_{DIM}$. Let $u(\cdot)$ denote a pre-specified transformation of the outcome. The estimand is defined as:
+
+$$ \delta_{DIM} = E[u(Y) \vert A=1] - E[u(Y) \vert A=0] = \sum_{i=1}^{k}u(j)\left(f( j \vert 1) - f(j \vert 0)\right) $$
+
+When $u$ is the identity function and the levels of $Y$ are numeric, $\delta_{DIM}$ is the difference in mean outcomes between treatment arms. While the difference in mean outcome may be understandable from a quantitative perspective, the scientific and clinical meaning of this difference may be less clear.
+
+Another possible choice of $u$ involves incorporation of weights or utilities assigned to each level of the outcome. The quantitative and clinical meanings of these estimators will depend on the weights utilized in the analysis. This allows the difference in means to be used, even if the levels of the outcome are not numeric (e.g. the Glasgow Outcome Scale, ranging from 'Dead', 'Vegetative state', 'Severely disabled', 'Moderately disabled', and 'Good recovery').
+
+When all outcomes at or above a threshold $t \in \{2, \ldots, k\}$ are given a utility of 1, and all others are given a utility of 0, this collapses the ordinal outcome into a binary one. The resulting estimand is the risk difference estimator of the outcome being at or above $t$:
+
+\[
+    u(Y)= 
+\begin{cases}
+    1: & Y \geq t \\
+    0: & Y < t
+\end{cases}
+\]
+
+While a risk difference may be more familiar to implement and conceptually easier to interpret, it treats all outcome states either below or above the threshold identically, ignoring potential information in such outcome states.
+
+When utilities can be assigned according to patient preferences or other considerations, the estimand is the difference in mean utility between treatment arms.
+
+\[
+    u(Y)= 
+\begin{cases}
+    u_{1} := \text{utility of } Y = 1\\
+    u_{2} := \text{utility of } Y = 2\\
+    \vdots \\
+    u_{k} := \text{utility of } Y = k
+\end{cases}
+\]
+
+The utilities will usually be monotone increasing, such that each level of the outcome is associated with equal or better utility. Alternatively, if lower values of the outcome are preferable (such as the NYHA class), utilities will usually be monotone decreasing.
+
+
+
+
+## M-W: Mann-Whitney Estimand
+
+The Mann-Whitney estimand gives the probability that a randomly-selected person assigned to treatment of interest will have an outcome on the same level or a higher level than a randomly-selected person assigned to the comparator group, with ties broken at random:
+
+$$ \delta_{MW} = P(\tilde{Y} > Y \vert \tilde{A} = 1, A = 0) + \frac{1}{2}P(\tilde{Y} = Y \vert \tilde{A} = 1, A = 0) = \sum_{j=1}^{K} \left\{ F(j-1 \vert 0) + \frac{1}{2} f(j \vert 0) \right\} f(j \vert 1) $$
+
+If there is no difference in treatments, we would expect a randomly selected individual from one group to have a higher outcome than a randomly selected individual from the other group about half the time: the null value for this estimand is $1/2$.
+
+Note that if higher numerical values indicate worse outcomes, like in the NYHA Class, the outcome scale can be reversed prior to analysis, so that the estimand can be interepreted as the probability that a randomly-selected person assigned to treatment of interest will have an outcome as good or better than a randomly-selected person assigned to the comparator group.
+
+This estimand addresses a common concern of those choosing between treatment options, and may be easier to communicate to a lay audience.
+
+
+
+
+## LOR: Log Odds Ratio
+
+In the case of a binary outcome, the odds ratio of a "good" outcome ($Y=1$) is $OR = odds(Y = 1 \vert A = 1)/odds(Y = 1 \vert A = 0)$: a value greater than 1 indicates a greater likelihood of a "good" outcome in the treatment of interest relative to the comparator group, and the log of the odds ratio will be positive. 
+
+In the case of an ordinal outcome with categories $1, \ldots, K$, these categories can be collapsed into $(K-1)$ binary outcomes: $Y \le j$ for $j \in \{1, \ldots, (K-1) \}$. The odds ratio at threshold $j$ compares the odds of falling at or below level $j$ between the treatment of interest and the comparator group: 
+
+$$ OR_{j} = \frac{odds(Y \le j \vert A = 1)}{odds(Y \le j \vert A = 0)} $$
+
+When this odds ratio is greater than 1, individuals assigned to the treatment of interest are more likely to have outcomes at or below level $j$ than those in the comparator group: the log of this odds ratio will be positive. The log odds ratio estimand combines information across the levels of an ordinal outcome by averaging the log odds of an outcome at or below each threshold across all thresholds of the outcome:
+
+$$ \delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{odds(Y \le j \vert A = 1)}{odds(Y \le j \vert A = 0)} \right) = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{F(j \vert 1)/ \left( 1 - F(j \vert 1) \right) } {F(j \vert 0)/ \left( 1 - F(j \vert 0) \right) } \right) $$
+
+This estimand is related to the proportional odds logistic regression model, a common parametric model for analyzing ordinal outcomes. In the proportional odds model, a regression coefficient for treatment group gives the increase in the odds of being at or below a given level of the outcome associated with a unit increase in that variable holding all else constant:
+
+$$ log(odds(Y \le j \vert A)) = logit \left(P(Y \le j \vert A) \right) =  \alpha_{j} + \beta A: \quad j \in \{1, \ldots, (K-1)\} $$
+
+A positive slope indicates greater likelihood of lower scores in those assigned to receive the treatment of interest relative to the comparator group. The proportional odds assumption involves assuming that the treatment has the same effect across each binary threshold (i.e. that $\beta$ does not vary across the $K-1$ thresholds). When this assumption holds, the log odds ratio estimand is the same as the coefficient in the proportional odds model, but importantly, the validity of the LOR estimand does not depend on this assumption [@diaz_ordinal]. As in binary and ordinal logistic regression, the null value for this estimand is 0.
+
+
+Since $-log(a/b) = log(b/a)$ and $odds(Y > j \vert A = 1) = 1/odds(Y \le j \vert A = 1)$, changing the sign of the log odds ratio estimator tells us about the average log odds of having scores higher than level $j$ in the treatment of interest relative to the comparator group:
+
+$$ -\delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{odds(Y > j \vert A = 1)}{odds(Y > j \vert A = 0)} \right) $$
+
+
+
+
+## Estimates and Inference
+
+The unadjusted estimates of the DIM, M-W, and LOR can be obtained using the empirical PMFs/CDFs of the outcome in each treatment arm. These empirical estimates can be substituted in to get a "plug-in" estimator of these quantities. Standard errors and confidence intervals can be obtained using the bias corrected and accelerated (BCa) bootstrap.
+
+Note that the LOR contains a log of a ratio:
+
+$$\delta_{LOR} = \frac{1}{K-1} \sum_{j=1}^{K-1} log \left( \frac{F(j \vert 1)\left( 1 - F(j \vert 0) \right)} {F(j \vert 0) \left( 1 - F(j \vert 1) \right) } \right)$$
+
+One issue that may arise in practice is at least one treatment arm has low observed frequencies in the lowest or highest levels of the outcome (i.e. $\hat{F}(1|A) = 0$ or $\hat{F}(K-1|A) = 1$). When using bootstrap resampling, some bootstrap samples may have no observed outcomes in those categories. When using the plug-in estimator, this results in either a zero in the numerator, which results in a logarithm that's undefined, or a zero in the denominator, which results in a ratio that's not defined. Both the M-W and DIM plug-in estimators are still defined in such cases.
+
+
 
 
 # Example Data: SMART-AV Trial
 
-Cardiac Resynchronization Therapy (CRT) has the potential to reduce hospitalizations, prolong survival, and provide better symptom management and quality of life compared to medical therapy alone in patients with severe left ventricular (LV) dysfunction, medically-refractive heart failure (HF) symptoms, and intraventricular conduction delay. **citation**
+In this section, we will discuss the SMART-AV Trial [@smartav_design], which will be used as an example for analyzing clinical trials with ordinal outcomes. The setting of the trial is introduced, along with which covariates and outcomes were measured. The distribution of covariates and outcomes in each treatment arm are described.
 
-However, there is variation in the degree of benefit from CRT among patients, and suboptimal arterioventricular (AV) delay timing may be one possible contributor to varying clinical outcomes. At the outset of the SMART-AV trial, previous studies varied in their approach to programming of the AV delay, and the goal of the trial was to assess three potential strategies for AV delay optimization. **citation**
+Cardiac Resynchronization Therapy (CRT) has the potential to reduce hospitalizations, prolong survival, and provide better symptom management and quality of life compared to medical therapy alone in patients with severe left ventricular (LV) dysfunction, medically-refractive heart failure (HF) symptoms, and intraventricular conduction delay [@smartav_design].
 
-The design of the trial can be found [here](https://doi.org/10.1111/j.1540-8159.2009.02581.x), and the primary results can be found [here](https://doi.org/10.1161/CIRCULATIONAHA.110.992552).
+However, there is variation in the degree of benefit from CRT among patients, and suboptimal arterioventricular (AV) delay timing may be one possible contributor to varying clinical outcomes. At the outset of the SMART-AV trial, previous studies varied in their approach to programming of the AV delay, and the goal of the trial was to assess three potential strategies for AV delay optimization [@smartav_design; @smartav_results]. 
+
+The SMART-AV trial is a parallel 3-arm trial, where patients were randomized 1:1:1 using block randomization stratified by study site. Participants were assessed at two subsequent visits: 3-months and 6-months post-randomization. Outcomes assessed included echocardiographic assessments, physical performance, and the impact of HF symptoms on quality of life.
+
+The design of the SMART-AV trial can be found [here](https://doi.org/10.1111/j.1540-8159.2009.02581.x), and the primary results can be found [here](https://doi.org/10.1161/CIRCULATIONAHA.110.992552).
 
 
-## Description of the Trial
 
-The trial is a parallel 3-arm trial, where patients were randomized 1:1:1 using block randomization stratified by study site. Participants were assessed at two subsequent visits: 3-months and 6-months post-randomization.
 
-### Baseline Covariates
+## Baseline Covariates
+
+Here we describe the sample according to baseline characteristics, and assess the balance of these characteristics across the treatment arms. Baseline covariates that are strongly associated with the outcome represent both potential sources of confounding as well as information that could be leveraged to improve the precision of estimates.
 
 Demographic and clinical covariates assessed at baseline include:
 
   - Demographics:
     - `age` - Age: age in years
-    - `gender` - Sex: biological sex
+    - `sex` - Sex: biological sex (`Male`/`Female`)
   - Anthropometry:
     - `height` - Height (cm)
     - `weight` - Weight (kg)
@@ -59,11 +409,11 @@ Demographic and clinical covariates assessed at baseline include:
     - `bun` - Blood Urea Nitrogen (mg/dL)
     - `creat` - Creatinine (mg/dL)
   - Medications at Enrollment:
-    - `ace` - Angiotensin Converting Enzyme (ACE) Inhibitors
+    - `ace` - Angiotensin Converting Enzyme (ACE) Inhibitors:
     - `arbs` - Angiotensin Receptor Blockers (ARBs)
     - `diuretic` - Diuretics
     - `ccb` - Calcium Channel Blockers
-    - `bb` -  $\beta$-Blockers
+    - `bb` - $\beta$-Blockers
     - `digoxin` - Digoxin
     - `spiro` - Spirolactone
   - Clinical Characteristics and Comorbidities
@@ -72,50 +422,49 @@ Demographic and clinical covariates assessed at baseline include:
     - `ischemic` - Ischemic origin of LV dysfunction
     - `diabetes` - Diabetes
     - `lbbb` - Left Bundle Branch Block
-    - `QRS` - QRS wave duration by Electrocardiogram (ms)
+    - `qrs` - QRS wave duration by Electrocardiogram (ms)
     - `paf` - Paroxysmal Atrial Fibrillation
     - `renal` - Renal Disease
     - `heart_valve` - Heart valve replacement
     - `copd` - Chronic Obstructive Pulmonary Disease (COPD)
     - `cabg` - Coronary Artery Bypass Graft (CABG)
 
-Continuous measures are presented with their units of measure in parenthesis. All other variables are categorical.
+Continuous measures are presented with their units of measure in parenthesis. All other variables are categorical. Aside from sex, all categorical variables were binary indicators, with `0` indicating absent, and `1` indicating present.
 
-### Outcomes
 
-The following outcome measures were obtained at baseline, as well as 3- and 6-month post-randomization visits:
+
+
+## SMART-AV Outcomes
+
+Here we describe the outcomes measured in the SMART-AV trial, and describe the ordinal outcome of interest. The following outcome measures were obtained at baseline, as well as 3- and 6-month post-randomization visits:
 
   - `lvesv` - Left Ventricular End Systolic Volume (LVESV, in mL)
   - `lvedv` - Left Ventricular End Diastolic Volume (LVEDV, in mL)
   - `lvef` - Left Ventricular Ejection Fraction (%)
   - `nyha` - New York Heart Association (NYHA) class for Heart Failure
-  - `qol_score` - Quality of Life
-  - `walk_test` - Walking Test
+  - `qol_score` - Quality of Life: Minnesota Living with Heart Failure Questionnaire
+    - Higher score: Poorer quality of life and greater activity limitations
+  - `walk_test` - Walking Test: meters walked in 6 minutes
   
-All outcomes except NYHA class are continuous measurements. The NYHA class is an ordinal scale with four potential levels **citation**:
+All outcomes except NYHA class are continuous measurements. The NYHA class is an ordinal scale with four potential levels [@nyha_description]:
 
-  - Class I:
-    - No limitation of physical activity, comfortable at rest
-    - Ordinary physical activity does not cause undue fatigue, palpitation, or shortness of breath
-  - Class II:
-    - Slight limitation of physical activity, comfortable at rest
-    - Ordinary physical activity causes fatigue, palpitation, or shortness of breath
-  - Class III:
-    - Marked limitation of physical activity, comfortable at rest
-    - Less than ordinary physical activity causes fatigue, palpitation, or shortness of breath
-  - Class IV:
-    - No physical activity without discomfort
-    - Symptoms of HF at rest
-    - Any physical acticity results in increased discomfort
+  - Class I: Patients have cardiac disease but without the resulting limitations of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation, dyspnoea (shortness of breath) or anginal pain (squeezing, pressure, heaviness, tightness, or pain in chest - discomfort can also occur elsewhere).
+  - Class II: Patients have cardiac disease resulting in slight limitation of physical activity. They are comfortable at rest. Ordinary physical activity results in fatigue, palpitation, dyspnoea or anginal pain.
+  - Class III: Patients have cardiac disease resulting in marked limitation of physical activity. They are comfortable at rest. Less than ordinary physical activity causes fatigue, palpitation, dyspnoea or anginal pain.
+  - Class IV: Patients have cardiac disease resulting in inability to carry on any physical activity without discomfort. Symptoms of cardiac insufficiency or of the anginal syndrome may be present even at rest. If any physical activity is undertaken, discomfort is increased.
 
-
-While the primary outcome of the SMART-AV trial was change from baseline in the left ventricular end systolic volume (LVESV), a continuous outcome, we will use NYHA heart failure classification as the outcome of interest. 
+While the primary outcome of the SMART-AV trial was change from baseline in the left ventricular end systolic volume (LVESV), a continuous outcome, we will use NYHA heart failure classification as the outcome of interest. Note that since the NYHA class measures physical limitations due to HF and the severity of HF symptoms with varying levels of activity, we would expect that the 6 minute walk test and the Minnesota Living with Heart Failure Questionnaire would be associated with the outcome.
 
 
 
-### Using R and Its Software Packages
 
-[R](https://www.r-project.org/) is a free and open source language and statistical computing environment. [Rstudio](https://rstudio.com/) is a powerful development environment for using the R language. The ability of R can be extended by downloading software packages from the [Comprehensive R Archival Network (CRAN)](https://cran.r-project.org/).
+# Using R and Its Software Packages
+
+This section provides a brief overview of the [R](https://www.r-project.org/) language and statistical computing environment, as well as other software that is useful for expanding its capabilities.
+
+The ability of R can be extended by downloading software packages from the [Comprehensive R Archival Network (CRAN)](https://cran.r-project.org/). [Rstudio](https://rstudio.com/) is a powerful development environment for using the R language.
+
+Below are some packages that may be useful:
 
   - [dplyr](https://dplyr.tidyverse.org/) and [tidyr](https://tidyr.tidyverse.org/) - Packages for manipulating data, including selecting rows and columns, generating new variables, arranging and reshaping data, and more.
   - [haven](https://haven.tidyverse.org/) - Packages for reading in different data formats, such as comma separated values (.csv), SAS (.sas7bdat), SPSS (.sav), Stata (.dta), and xport (.xpt) files.
@@ -132,58 +481,998 @@ install.packages(pkgs = "drord")
 R will automatically install the package and any other package 'dependencies' - other packages required for its use.
 
 
-### Reading in Data
 
-```{r}
-input.dir <- paste0("S:", "projects", "SMART-AV", "data", "160909")
-input.file <- "w_SMART-AV_v0.0_2016-09-09.dta"
-input.path <- file.path(input.dir, input.file)
-```
 
-The resulting file path is `r input.path` - the file name includes a date stamp to indicate a version of the original primary data (2016-09-09), and the version of the code used to produce the file (v0.0).
+## Reading in Data
 
-We can read in the data using the `haven::read_dta()` function.
+R can read in data from many different sources, including formats for SAS, Stata, SPSS, Excel, and others. Create a path to the data using `file.path()` - different data formats may require different functions for reading in the data. Delimited text data, such as CSV files, can be read in using the `utils` package. Formatted data from statistical packages like SAS, Stata, SPSS, and others can be read in using `haven` or other packages. Spreadsheets can be read in using the `readxl` package. 
 
 ```{r, eval = FALSE}
-smartav <- haven::read_dta(file = input.path)
+input_directory <-
+  file.path("C:", "projects", "smart_av", "data", "analytic")
+
+input_csv <- "smart_av_v1.0.csv"
+
+smart <-
+  read.csv(file = file.path(input_directory, input_csv))
 ```
 
-### Data Structure
 
-The original data is in *wide* format: each row contains all observations pertaining to an individual across multiple columns. Data can be reshaped to long format using one of many potential functions: `stats::reshape`, `tidyr::pivot_longer`, or others. There are several worked examples of `dplyr` and `tidyr` in action on the web at the [Tidyverse site](https://www.tidyverse.org/).
 
-# Estimands: Targets of Inference
 
-Note that all analyses follow the intention-to-treat (ITT) principle: all participants are analyzed according to how they were randomized, irrespective of what treatment was received during the trial.
+## Data Structure
 
-## DIM: Difference in Mean Outcomes
+In this section, we discuss the format of data, and how to make data ready to analyze. With SMART-AV, the data is recorded in *wide* format: each row contains all observations pertaining to an individual arranged in multiple columns. Data can be reshaped to long format using one of many potential functions: `stats::reshape`, `tidyr::pivot_longer`, or others. There are several worked examples of `dplyr` and `tidyr` in action on the web at the [Tidyverse site](https://www.tidyverse.org/).
 
-## LOR: Log Odds Ratio
 
-# Estimating the Effect of a Treatment
+
+
+## Descriptive Statistics
+
+Here we present the distribution of baseline covariates in aggregate and by treatment arm. This allows us to assess the balance of known predictors of the outcome across treatment arms, as well as assess the frequency of missing covariates.
+
+```{r}
+cat_aggregate <-
+  smart %>% 
+  dplyr::select(
+    sex, ace, arbs, diuretic, ccb, bb, spiro, digoxin,
+    sys_hypert, pulm_hypert, ischemic, lbbb,
+    copd, cabg, nyha_bl, heart_valve, renal, diabetes, paf
+  ) %>%
+  dplyr::mutate(across(.fns = as.character)) %>% 
+  tidyr::pivot_longer(cols = everything()) %>%
+  dplyr::mutate(
+    value = 
+      case_when(
+        is.na(value) ~ "(Missing)",
+        value == 1 ~ "Present",
+        value == 0 ~ "Absent",
+        !value %in% c(NA, 1, 0) ~ value)
+  ) %>%
+  dplyr::group_by(name, value) %>% 
+  dplyr::summarize(All = n()) %>% 
+  dplyr::group_by(name) %>%
+  dplyr::mutate(All = n_d_percent(n = All, d = sum(All))) %>%
+  dplyr::filter(value != "Absent")
+
+cat_by_arm <-
+  smart %>% 
+  dplyr::select(
+    treatment, sex, ace, arbs, diuretic, ccb, bb, spiro, digoxin,
+    sys_hypert, pulm_hypert, ischemic, lbbb,
+    copd, cabg, nyha_bl, heart_valve, renal, diabetes, paf
+  ) %>%
+  dplyr::mutate(across(.fns = as.character)) %>% 
+  tidyr::pivot_longer(cols = -one_of("treatment")) %>%
+  dplyr::mutate(
+    value = 
+      case_when(
+        is.na(value) ~ "(Missing)",
+        value == 1 ~ "Present",
+        value == 0 ~ "Absent",
+        !value %in% c(NA, 1, 0) ~ value)
+  ) %>%
+  dplyr::group_by(treatment, name, value) %>% 
+  dplyr::summarize(N = n()) %>% 
+  dplyr::group_by(treatment, name) %>%
+  dplyr::mutate(N = n_d_percent(n = N, d = sum(N))) %>%
+  dplyr::filter(value != "Absent") %>%
+  tidyr::pivot_wider(names_from = treatment, values_from = N)
+
+cts_aggregate <-
+  smart %>%
+  dplyr::select(
+    age, bmi, lvesv_bl, bpsys, bpdia, hrrest, qrs, bun, creat, walk_test_bl
+  ) %>%
+  tidyr::pivot_longer(cols = everything()) %>% 
+  dplyr::group_by(name) %>% 
+  dplyr::summarize(
+    treatment = "All",
+    N = n_d_percent(n = sum(!is.na(value)), d = length(value)),
+    Mean = mean(value, na.rm = TRUE),
+    SD = sd(value, na.rm = TRUE),
+    `Q1` = quantile(x = value, p = 0.25, na.rm = TRUE),
+    `Q2`= quantile(x = value, p = 0.50, na.rm = TRUE),
+    `Q3`= quantile(x = value, p = 0.75, na.rm = TRUE)
+  ) %>%
+  dplyr::mutate(
+    across(
+      .cols = where(is.numeric),
+      .fns = function(x) str_trim(format(x = x, digits = 1,nsmall = 1))
+    )
+  ) %>%
+  dplyr::mutate(
+    `Mean (SD)` = paste0(Mean, " (", SD, ")"),
+    Mean = NULL, SD = NULL,
+    `25%/50%/75%` = paste0(Q1, " / ", Q2, " / ", Q3),
+    Q1 = NULL, Q2 = NULL, Q3 = NULL
+  ) %>% 
+  dplyr::rename(variable = name) %>% 
+  tidyr::pivot_longer(cols = -one_of(c("treatment", "variable"))) %>%
+  tidyr::pivot_wider(names_from = treatment, values_from = value)
+
+cts_by_arm <-
+  smart %>%
+  dplyr::select(
+    treatment, age, bmi, lvesv_bl, bpsys, bpdia, hrrest, qrs, bun, creat, walk_test_bl
+  ) %>%
+  tidyr::pivot_longer(cols = -one_of("treatment")) %>% 
+  dplyr::group_by(treatment, name) %>% 
+  dplyr::summarize(
+    N = n_d_percent(n = sum(!is.na(value)), d = length(value)),
+    Mean = mean(value, na.rm = TRUE),
+    SD = sd(value, na.rm = TRUE),
+    `Q1` = quantile(x = value, p = 0.25, na.rm = TRUE),
+    `Q2`= quantile(x = value, p = 0.50, na.rm = TRUE),
+    `Q3`= quantile(x = value, p = 0.75, na.rm = TRUE)
+  ) %>%
+  dplyr::mutate(
+    across(
+      .cols = where(is.numeric),
+      .fns = function(x) str_trim(format(x = x, digits = 1,nsmall = 1))
+    )
+  ) %>%
+  dplyr::mutate(
+    `Mean (SD)` = paste0(Mean, " (", SD, ")"),
+    Mean = NULL, SD = NULL,
+    `25%/50%/75%` = paste0(Q1, " / ", Q2, " / ", Q3),
+    Q1 = NULL, Q2 = NULL, Q3 = NULL
+  ) %>% 
+  dplyr::rename(variable = name) %>% 
+  tidyr::pivot_longer(cols = -one_of(c("treatment", "variable"))) %>%
+  tidyr::pivot_wider(names_from = treatment, values_from = value)
+
+table_1_cat <- 
+  dplyr::full_join(
+    x = cat_aggregate,
+    y = cat_by_arm,
+    by = c("name", "value")
+  ) %>%
+  tidyr::unite(
+    col = name,
+    name, value, sep = " - "
+  ) %>%
+  dplyr::mutate(
+    Summary = "N"
+  ) %>%
+  dplyr::rename(
+    Variable = name,
+  ) %>%
+  dplyr::select(
+   Variable, Summary, All, Algorithm, Echo, Fixed 
+  )
+  
+
+table_1_cts <-
+  dplyr::full_join(
+    x = cts_aggregate,
+    y = cts_by_arm,
+    by = c("variable", "name")
+  ) %>%
+  dplyr::rename(
+    Variable = variable,
+    Summary = name
+  )
+
+table_1 <-
+  dplyr::bind_rows(
+    table_1_cat, table_1_cts
+  ) %>%
+  dplyr::mutate(
+    Variable =
+      case_when(
+        Variable == "ace - Present" ~ "Uses ACE Inhibitors",
+        Variable == "age" ~ "Age (y)",
+        Variable == "arbs - Present" ~ "Uses ARBs",
+        Variable == "bb - Present" ~ "Uses $\\beta$Bs",
+        Variable == "bmi" ~ "BMI (kg/m^2)",
+        Variable == "bpsys" ~ "SBP (mm Hg)",
+        Variable == "bpdia" ~ "DBP (mm Hg)",
+        Variable == "bun" ~ "BUN (mg/dL)",
+        Variable == "cabg - (Missing)" ~ "Hx CABG (Missing)",
+        Variable == "cabg - Present" ~ "Hx CABG",
+        Variable == "ccb - Present" ~ "Uses CCBs",
+        Variable == "copd - Present" ~ "Hx COPD",
+        Variable == "creat" ~ "Creatinine (mg/dL)",
+        Variable == "diabetes - Present" ~ "Hx Diabetes",
+        Variable == "digoxin - Present" ~ "Uses Digoxin",
+        Variable == "diuretic - Present" ~ "Uses Diuretics",
+        Variable == "heart_valve - Present" ~ "Hx Valve Replacement",
+        Variable == "hrrest" ~ "Resting HR (beats/min)",
+        Variable == "ischemic - (Missing)" ~ "Origin (Missing)",
+        Variable == "ischemic - Ischemic" ~ "Ischemic Origin",
+        Variable == "ischemic - Non-Ischemic" ~ "Non-Ischemic Origin",
+        Variable == "lbbb - Present" ~ "LBBB Present",
+        Variable == "lvesv_bl" ~ "LVESV (mL)",
+        Variable == "nyha_bl - (Missing)" ~ "NYHA (Missing)",
+        Variable == "nyha_bl - Present" ~ "NYHA I",
+        Variable == "nyha_bl - 2" ~ "NYHA II",
+        Variable == "nyha_bl - 3" ~ "NYHA III",
+        Variable == "nyha_bl - 4" ~ "NYHA IV",
+        Variable == "paf - Present" ~ "Hx PAF",
+        Variable == "pulm_hypert - Present" ~ "Pulmonary HTN",
+        Variable == "qrs" ~ "QRS Duration (ms)",
+        Variable == "renal - Present" ~ "Hx Renal Disease",
+        Variable == "sex - Female" ~ "Sex - Female",
+        Variable == "sex - Male" ~ "Sex - Male",
+        Variable == "spiro - Present" ~ "Uses Spironolactone",
+        Variable == "sys_hypert - Present" ~ "Systemic HTN",
+        Variable == "walk_test_bl" ~ "6m Walk Distance (m)"
+      )
+  ) %>%
+  dplyr::mutate(
+    Variable =
+      factor(
+        x = Variable,
+        levels = c(
+          "Age (y)",
+          "Sex - Female",
+          "Sex - Male",
+          "BMI (kg/m^2)",
+          
+          "SBP (mm Hg)",
+          "DBP (mm Hg)",
+          "Systemic HTN",
+          "Pulmonary HTN",
+          "Resting HR (beats/min)",
+          "LBBB Present",
+          "Ischemic Origin",
+          "Non-Ischemic Origin",
+          "Origin (Missing)",
+          
+          "Hx PAF",
+          "Hx Diabetes",
+          "Hx Renal Disease",
+          "Hx COPD",
+          "Hx CABG",
+          "Hx CABG (Missing)",
+          "Hx Valve Replacement",
+          
+          "NYHA I",
+          "NYHA II",
+          "NYHA III",
+          "NYHA IV",
+          "NYHA (Missing)",
+          
+          "LVESV (mL)",
+          "LVEF (%)",
+          "QRS Duration (ms)",
+          "6m Walk Distance (m)",
+          
+          # Medications at Baseline
+          "Uses ACE Inhibitors",
+          "Uses ARBs",
+          "Uses Diuretics",
+          "Uses CCBs",
+          "Uses $\\beta$Bs",
+          "Uses Spironolactone",
+          "Uses Digoxin",
+          # Laboratory Markers
+          "BUN (mg/dL)",
+          "Creatinine (mg/dL)")
+      )
+  ) %>%
+  dplyr::filter(!(Summary == "N" & All == "980/980 (100.0%)")) %>%
+  dplyr::arrange(Variable)
+
+
+kable(x = table_1,
+      caption =
+        paste0("Baseline characteristics in aggregate and by treatment arm. ",
+               "Note: the number of observations is suppressed for numeric ",
+               "variables with no missing data. Frequencies are tabulated ",
+               "out of the total number of participants. Missing values for ",
+               "categorical variables are indicated by '(Missing)`."))
+
+```
+
+
+
+
+## Distribution of Outcomes
+
+Here we show the empirical distribution of the outcome. We tabulate the frequency of each outcome category, the cumulative frequency, and the log odds ratio for each category.
+
+Special attention is warranted to the lowest and highest levels of the outcome: if these frequencies are sufficiently low, they may pose a problem for the LOR estimator.
+
+```{r ePMF_of_outcome}
+nyha_6m_epmf <-
+  smart %>%
+  dplyr::select(treatment, nyha_6m) %>%
+  dplyr::mutate(
+    nyha_6m = c("Class I", "Class II", "Class III", "Class IV")[nyha_6m],
+    nyha_6m = replace_na(data = nyha_6m, replace = "(Missing)")
+  ) %>%
+  dplyr::group_by(treatment, nyha_6m) %>%
+  dplyr::summarize(
+    N = n(),
+    N_obs = sum(!is.na(nyha_6m)),
+  ) %>%
+  dplyr::mutate(
+    `N (%)` =
+      case_when(
+        !is.na(nyha_6m) ~ n_d_percent(n = N, d = sum(N_obs)),
+        is.na(nyha_6m) ~ n_d_percent(n = N, d = sum(N))
+      )
+  ) %>%
+  dplyr::select(-N, -N_obs) %>%
+  tidyr::pivot_wider(
+    names_from = treatment,
+    values_from = `N (%)`
+  ) %>%
+  dplyr::rename(
+    `6M NYHA Class` = nyha_6m
+  )
+
+
+kable(
+  x = nyha_6m_epmf,
+  caption =
+    paste0("Frequency of NYHA Class at 6 months post-randomization. ",
+           "Percentage of missing values out of all participants randomized ",
+           "is presented, as well as the frequency of outcome classes among ",
+           "participants with observed outcomes."))
+```
+
+```{r eCDF_of_Outcome}
+nyha_6m_ecdf <-
+  smart %>%
+  dplyr::select(treatment, nyha_6m) %>%
+  dplyr::group_by(treatment) %>%
+  dplyr::summarize(
+    `$Pr\\{Y \\le 1 \\vert A\\}$` = 
+      n_d_percent(n = sum(nyha_6m <= 1, na.rm = TRUE),
+                  d = sum(!is.na(nyha_6m))),
+    `$Pr\\{Y \\le 2 \\vert A\\}$` = 
+      n_d_percent(n = sum(nyha_6m <= 2, na.rm = TRUE),
+                  d = sum(!is.na(nyha_6m))),
+    `$Pr\\{Y \\le 3 \\vert A\\}$` = 
+      n_d_percent(n = sum(nyha_6m <= 3, na.rm = TRUE),
+                  d = sum(!is.na(nyha_6m))),
+    `$log(odds\\{Y \\le 1 \\vert A\\})$` =
+      log(mean(nyha_6m <= 1, na.rm = TRUE)/
+            mean(nyha_6m > 1, na.rm = TRUE)) %>%
+      format(x = ., digits = 1, nsmall = 1) %>%
+      str_trim,
+    `$log(odds\\{Y \\le 2 \\vert A\\})$` =
+      log(mean(nyha_6m <= 2, na.rm = TRUE)/
+            mean(nyha_6m > 2, na.rm = TRUE)) %>%
+      format(x = ., digits = 1, nsmall = 1) %>%
+      str_trim,
+    `$log(odds\\{Y \\le 3 \\vert A\\})$` =
+      log(mean(nyha_6m <= 3, na.rm = TRUE)/
+            mean(nyha_6m > 3, na.rm = TRUE)) %>%
+      format(x = ., digits = 1, nsmall = 1) %>%
+      str_trim,
+    `(Missing)` = n_d_percent(n = sum(is.na(nyha_6m)), d = length(nyha_6m))
+  ) %>%
+  dplyr::ungroup() %>%
+  tidyr::pivot_longer(cols = -one_of("treatment")) %>%
+  tidyr::pivot_wider(names_from = treatment, values_from = value)
+
+kable(
+  x = nyha_6m_ecdf,
+  caption = 
+    paste0("Estimated cumulative distributon and log odds ratios by ",
+           "treatment arm.")
+)
+```
+
+
+
+
+# Unadjusted Analyses
+
+This section demonstrates estimating the DIM, Mann-Whitney, and LOR estimands in R, and obtaining their standard errors and 95% confidence intervals using the BCa bootstrap.  
+
+Since there are so few 6-month outcomes in class IV, it's quite possible that in some bootstrap samples, at least one treatment group may have no class IV outcomes. While this does not pose difficulties for the DIM and MW estimators, it does pose a potential problem for the LOR estimator. We can pool classes III and IV together to avoid the issue of an undefined plug-in estimator.
+
+We can also define utilities to use for the difference-in-means estimand.
+
+```{r Define_utilities, echo = TRUE}
+# Example Utilities
+u_class_i <- 100
+u_class_ii <- 80
+u_class_iii_iv <- 40
+
+nyha_utilities <-
+  c(u_class_i, u_class_ii, u_class_iii_iv)
+```
+
+
+```{r Pool_Outcome_Levels}
+smart_sf <-
+  smart %>%
+  dplyr::filter(
+    treatment %in% c("Algorithm", "Fixed"),
+    !is.na(renal),
+    !is.na(copd),
+    !is.na(walk_test_bl),
+    !is.na(qol_score_bl),
+    !is.na(bmi)
+    ) %>%
+  dplyr::mutate(
+    treatment = 1*(treatment == "Algorithm"),
+    nyha_6m_3lvl = 
+      case_when(
+        nyha_6m <= 2 ~ nyha_6m,
+        nyha_6m > 2 ~ 3
+      ),
+    
+    nyha_6m_3_1 = 1*(nyha_6m_3lvl == 1),
+    nyha_6m_3_2 = 1*(nyha_6m_3lvl == 2),
+    nyha_6m_3_3 = 1*(nyha_6m_3lvl == 3)
+  ) %>% 
+  droplevels()
+```
+
+
+
 
 ## Unadjusted Difference in Means
 
-## Unadjusted Log Odds Ratio
+The difference in mean NYHA scores between arms can be calculated using the `dim_estimate` function: 
 
-## Adjusted Log Odds Ratio
+```{r dim_unweighted, echo = TRUE}
+with(smart_sf,
+     dim_estimate(outcome = nyha_6m_3lvl,
+                  treatment = treatment,
+                  outcome_levels = 1:3))
+```
+
+The average NYHA class is higher in the fixed delay comparator group than the algorithmic delay treatment group, but this difference is not very large. We can incorporate utilities using the `utilities` argument:
+
+```{r dim_weighted, echo = TRUE}
+with(smart_sf,
+     dim_estimate(outcome = nyha_6m_3lvl,
+                  treatment = treatment,
+                  outcome_levels = 1:3,
+                  utilities = nyha_utilities))
+```
+
+The average utility is higher in the algorithmic delay group relative to the fixed delay comparator group: again, the difference is not very large, given that the utilities range from `r min(nyha_utilities)` to `r max(nyha_utilities)`.
+
+
+
+
+## Unadjusted Mann-Whitney Estimate
+
+For the Mann-Whitney estimate, we can use the `mw_estimate` function:
+
+```{r mw_estimate, echo = TRUE}
+with(smart_sf,
+     mw_estimate(outcome = nyha_6m_3lvl,
+                  treatment = treatment,
+                  outcome_levels = 1:3))
+```
+
+The probability that a randomly selected individual from the algorithmic delay group has a higher NYHA Class (worse outcome) compared to a randomly selected individual from the fixed delay comparator group is less than half, but not by much. We can re-order the outcome levels using the `outcome_levels` argument:
+
+```{r mw_estimate_2, echo = TRUE}
+with(smart_sf,
+     mw_estimate(outcome = nyha_6m_3lvl,
+                 treatment = treatment,
+                 outcome_levels = 3:1))
+```
+
+Note that this is simply the complement of the earlier result, since ties are broken at random. 
+
+
+
+
+## Unadjusted Log Odds Ratio Estimate
+
+The log odds ratio estimate can be obtained using `lor_estimate`:
+
+```{r lor_estimate, echo = TRUE}
+with(smart_sf,
+     lor_estimate(outcome = nyha_6m_3lvl,
+                 treatment = treatment,
+                 outcome_levels = 1:3))
+```
+
+Here we see a positive estimate, suggesting that when we average across all the possible thresholds of the outcome, those assigned to the algorithmic group had higher log odds of being at or below a given threshold relative to the fixed delay group. As expected, reversing the levels changes the sign of the estimate.
+
+```{r lor_estimate_2, echo = TRUE}
+with(smart_sf,
+     lor_estimate(outcome = nyha_6m_3lvl,
+                 treatment = treatment,
+                 outcome_levels = 3:1))
+```
+
+
+
+
+## Confidence Intervals for Unadjusted Estimates
+
+We can calculate the standard errors of these quantities using the bias corrected and accelerated (BCa) bootstrap with the `boot()` function. In order to do this, we must create a function that takes in (1) the data, (2) the indices of the bootstrap sample, and (3) any additional arguments and returns the estimates. See `?boot` for more information on bootstrapping in R.
+
+```{r boot_example, echo = TRUE}
+dim_mw_lor <-
+  function(data, indices, outcome_levels, utilities = NULL){
+    dim_unweighted <-
+      with(data[indices,],
+           dim_estimate(outcome = nyha_6m_3lvl,
+                        treatment = treatment,
+                        outcome_levels = outcome_levels))
+    
+    dim_weighted <-
+      ifelse(test = is.null(utilities),
+             yes = NA,
+             no =
+               with(data[indices,],
+                    dim_estimate(outcome = nyha_6m_3lvl,
+                                 treatment = treatment,
+                                 utilities = utilities,
+                                 outcome_levels = outcome_levels))
+      )
+    
+    mw <- 
+      with(data[indices,],
+           mw_estimate(outcome = nyha_6m_3lvl,
+                       treatment = treatment))
+    
+    lor <- 
+      with(data[indices,],
+           lor_estimate(outcome = nyha_6m_3lvl,
+                        treatment = treatment))
+    
+    c(dim_unweighted, dim_weighted, mw, lor)
+  }
+
+boot.results <-
+  boot(data = smart_sf,
+       statistic = dim_mw_lor,
+       R = n_bootstrap,
+       # These are parameters to be passed to dim_mw_lor()
+       outcome_levels = 1:3,
+       utilities = nyha_utilities[1:3]
+  )
+```
+
+The resulting `boot.results` object can be summarized using `print` and we can use `boot.ci` to obtain confidence intervals.
+
+```{r Print_Boot}
+print(boot.results)
+```
+
+
+
+```{r Create_Unadjusted_Results_DF}
+# Create data frame of estimates & CIs by method:
+estimates <- 
+  matrix(data = NA,
+         nrow = length(boot.results$t0),
+         ncol = 4)
+
+# Insert Estimates/SEs
+estimates[, 1] <-
+  boot.results$t0
+estimates[, 2] <-
+  apply(X = boot.results$t,
+        MARGIN = 2,
+        FUN = sd)
+
+# Loop over statistics: extract BCa CI
+for(i in 1:length(boot.results$t0)) {
+  estimates[i, 3:4] <-
+    boot.ci(boot.out = boot.results,
+            type = "bca",
+            index = i)$bca[4:5]
+}
+
+# Make into tibble, calculate CI Width
+estimates <-
+  tibble(
+    Method = c("Weighted Mean - Unadjusted",
+               "Weighted Mean Utility - Unadjusted",
+               "Mann-Whitney - Unadjusted",
+               "Log Odds Ratio - Unadjusted"),
+    setNames(object = data.frame(estimates),
+         nm = c("Estimate", "SE", "L95%", "U95%"))
+    ) %>%
+  dplyr::mutate(
+    `CI Width` = `U95%` - `L95%`
+  )
+
+estimates$Variance <- estimates$SE^2
+
+kable(x = estimates,
+      caption = "Unadjusted estimates with 95% BCa Confidence Intervals.",
+      digits = c(rep(2, 6), 4))
+```
+
+
+
+
+# Adjusted Analysis
+
+We will illustrate adjusted analyses using the `drord()` function in the `drord` package. This allows us to calculate the DIM, M-W, and LOR estimands, adjusting for baseline covariates. In order to do this, we need to specify a dataset of covariates, and how these covariates may be related to treatment assignment and the outcome of interest.
+
+Note that `drord` actually produces all three estimates in one function.
+
+```{r drord_adjusted_1, echo = TRUE}
+dbp_adjusted_bca <-
+  with(smart_sf,
+       drord(
+         out = nyha_6m_3lvl,
+         treat = treatment,
+         data.frame(renal, copd, walk_test_bl, qol_score_bl, bmi),
+         ci = "bca",
+         nboot = n_bootstrap)
+  )
+
+print(dbp_adjusted_bca)
+```
+
+
+
+```{r drord_adjusted_2}
+dbp_adjusted_bca %>%
+  drord_table %>%
+  kable(x = .,
+        digits = 2,
+        caption = 
+          paste0("Estimated treatment effects adjusted for history of renal ",
+                 "disease and COPD, baseline walk test, heart failure ",
+                 "symptoms, and BMI."))
+```
+
+
+
+
+## Comparing Adjusted and Unadjusted Analyses
+
+We can compare the unadjusted estimate to the adjusted estimate to determine the potential benefits of covariate adjustment. 
+
+```{r Compare_adjusted_unadjusted}
+comparison_adjustment <-
+  drord_table(dbp_adjusted_bca) %>%
+  dplyr::filter(treatment == "diff") %>%
+  dplyr::mutate(
+    `CI Width` = ucl - lcl,
+    Variance = se^2,
+    treatment = NULL,
+    ci = NULL
+  ) %>%
+  dplyr::rename(
+    Method = method,
+    Estimate = estimate,
+    SE = se,
+    `L95%` = lcl,
+    `U95%` = ucl,
+  ) %>%
+  dplyr::bind_rows(
+    estimates %>%
+      dplyr::filter(
+        Method != "Weighted Mean Utility - Unadjusted"
+      ),
+    .
+  ) %>%
+  dplyr::arrange(Method) %>%
+  tidyr::extract(
+    col = Method,
+    into = c("Estimator", "Type"),
+    regex = c("(.*) - (.*)")) %>%
+  tidyr::pivot_longer(cols = -one_of("Estimator", "Type")) %>%
+  dplyr::filter(name %in% c("Estimate", "Variance")) %>%
+  tidyr::pivot_wider(names_from = Type, values_from = value) %>%
+  dplyr::mutate(
+    `Adjusted-Unadjusted` = Adjusted-Unadjusted,
+    `Adjusted/Unadjusted` = Adjusted/Unadjusted)
+
+adjusted_var_ratio <-
+  comparison_adjustment %>%
+  dplyr::filter(name == "Variance") %>%
+  dplyr::mutate(
+    `Adjusted/Unadjusted` = 100*(1-`Adjusted/Unadjusted`)) %>%
+  dplyr::pull(`Adjusted/Unadjusted`) %>%
+  range %>%
+  round(digits = 1)
+
+comparison_adjustment %>%
+  kable(x = .,
+        digits = c(2, 2, 2, 2, 4, 2),
+        caption =
+          paste0("A comparison of estimates and variances (squared standard ",
+                 "error) between adjusted and unadjusted analysis. By ",
+                 "adjusting for these covariates, a ", adjusted_var_ratio[1],
+                 " to ", adjusted_var_ratio[2], " percent reduction in ",
+                 "variance can be achieved, translating into increased ",
+                 "precision or smaller sample size requirements."))
+```
+
+Here we see larger estimates in the LOR and DIM estimate: this means the average NYHA class number was larger in the fixed delay comparator group than the algorithmic delay treatment group, and the log odds of having a score at or below a given class was higher among the algorithmic delay treatment group compared to the fixed delay comparator group when averaged across all NYHA class levels. 
+
+
+
+
+# Missing Data
+
+While there are strategies that investigators can utilize to minimize the degree of missing data in clinical trials [@missing_data_clinical_trials], missing data are highly likely even in well-conducted studies. When data are missing, all analyses must impose some assumptions about the missing data: unrealistic assumptions can lead to biased estimates of the treatment effect. Additionally, the missing data reduces the precision of estimates and statistical power. While appropriate methods can potentially mitigate some of the bias and reductions in precision due to missing data, these factors can only address missingness related to factors that are observed and appropriately measured.
+
+The simplest, but least realistic assumption is that data are missing completely at random (MCAR), which assumes that the degree of missing data is unrelated to baseline characteristics $(X)$, treatment assignment $(A)$, or outcomes after randomization $(Y)$. Under this assumption, the sample of complete cases is a simple random sample from the entire study sample: missing data may result in loss of precision and power, but the loss of data does not introduce bias.
+
+Under the missing at random (MAR) assumption, the degree of missing data may vary with observed participant characteristics, but is assumed to be independent of factors that are not observed. If data cannot be assumed to be MAR, they are referred to as missing not at random (MNAR).
+
+While the MAR assumption may be more credible than the MCAR assumption, it still may not be the most credible assumption regarding missing data. It is, however, the most general assumption under which we can obtain valid inference without making untestable assumptions about the nature of missing data [@kenward_carpenter_mi]. Furthermore, the results of these analyses may strongly depend on these assumptions, which cannot be empirically assessed.
+
+
+
+
+
+## Missing Data in Covariates
+
+Covariates with high degrees of missingness should not be used in adjusted analyses. In situations with very few observations with missing data (*specific guidance/recommendations?*), a simple approach is a single imputation. With greater proportions of missing data, a single imputation approach may not adequately account for the uncertainty in the imputation process. When bootstrapping analyses, imputation should occur within each bootstrap sample, so that variation in the imputation process is propagated in the analysis.
+
+While imputation can be based on the observed baseline covariates, no treatment or outcome should be used. This ensures that treatment assignment is unrelated to the baseline covariates, consistent with the assumptions listed above.
+
+
+
+## Missing Outcome Data
+
+
+Doubly robust estimators rely on a propensity score model, which models the probability of receiving a treatment based on baseline covariates, and an outcome model, which specifies the distribution of the outcome given the treatment assignment and baseline covariates. These models provide a consistent estimates of the treatment effect if either model is correctly specified.
+
+There are doubly robust methods available that provide valid inference under the assumption that outcomes are missing at random given treatment assignment and baseline covariates.
+
+
+
+# Choosing Variables for Adjustment
+
+Reduction of bias and variance depends on the association between the baseline covariates and the outcome. When no prior information is available, investigators should choose covariates judiciously based on their knowledge of the trial setting and outcome of interest: this can help identify a priori which variables may provide additional efficiency in adjusted analyses.
+
+When data are available from previous studies, there are classical statistical and modern prediction methods that can help identify prognostic baseline covariates that may be influential. These methods could include (partial) proportional odds models, multinomial logistic regression, random forests, gradient boosting machines, or other classification tools.
+
+
+
+
+```{r table_covariates_by_outcome}
+cat_by_outcome <-
+  smart %>% 
+  dplyr::select(
+    nyha_6m, treatment, sex, ace, arbs, diuretic, ccb, bb, spiro, digoxin,
+    sys_hypert, pulm_hypert, ischemic, lbbb, 
+    copd, cabg, nyha_bl, heart_valve, renal, diabetes, paf
+  ) %>%
+  dplyr::mutate(
+    nyha_6m = c("Class I", "Class II", "Class III", "Class IV")[nyha_6m],
+    nyha_6m = replace_na(data = nyha_6m, replace = "(Missing)"),
+    
+    nyha_bl = c("Class I", "Class II", "Class III", "Class IV")[nyha_bl],
+    nyha_bl = replace_na(data = nyha_bl, replace = "(Missing)"),
+  ) %>%
+  dplyr::mutate(across(.fns = as.character)) %>% 
+  tidyr::pivot_longer(cols = -one_of("nyha_6m")) %>%
+  dplyr::mutate(
+    value = 
+      case_when(
+        is.na(value) ~ "(Missing)",
+        value == 1 ~ "Present",
+        value == 0 ~ "Absent",
+        !value %in% c(NA, 1, 0) ~ value)
+  ) %>%
+  dplyr::group_by(nyha_6m, name, value) %>% 
+  dplyr::summarize(N = n()) %>% 
+  dplyr::group_by(nyha_6m, name) %>%
+  dplyr::mutate(N = n_d_percent(n = N, d = sum(N))) %>%
+  dplyr::filter(value != "Absent") %>%
+  tidyr::pivot_wider(names_from = nyha_6m, values_from = N)
+
+
+
+cts_by_outcome <-
+  smart %>%
+  dplyr::select(
+    nyha_6m, age, bmi, lvesv_bl, bpsys, bpdia, hrrest, qrs, bun, creat, walk_test_bl
+  ) %>%
+  dplyr::mutate(
+    nyha_6m = c("Class I", "Class II", "Class III", "Class IV")[nyha_6m],
+    nyha_6m = replace_na(data = nyha_6m, replace = "(Missing)")
+  ) %>%
+  tidyr::pivot_longer(cols = -one_of("nyha_6m")) %>% 
+  dplyr::group_by(nyha_6m, name) %>% 
+  dplyr::summarize(
+    N = n_d_percent(n = sum(!is.na(value)), d = length(value)),
+    Mean = mean(value, na.rm = TRUE),
+    SD = sd(value, na.rm = TRUE),
+    `Q1` = quantile(x = value, p = 0.25, na.rm = TRUE),
+    `Q2`= quantile(x = value, p = 0.50, na.rm = TRUE),
+    `Q3`= quantile(x = value, p = 0.75, na.rm = TRUE)
+  ) %>%
+  dplyr::mutate(
+    across(
+      .cols = where(is.numeric),
+      .fns = function(x) str_trim(format(x = x, digits = 1,nsmall = 1))
+    )
+  ) %>%
+  dplyr::mutate(
+    `Mean (SD)` = paste0(Mean, " (", SD, ")"),
+    Mean = NULL, SD = NULL,
+    `25%/50%/75%` = paste0(Q1, " / ", Q2, " / ", Q3),
+    Q1 = NULL, Q2 = NULL, Q3 = NULL
+  ) %>% 
+  dplyr::rename(variable = name) %>% 
+  tidyr::pivot_longer(cols = -one_of(c("nyha_6m", "variable"))) %>%
+  tidyr::pivot_wider(names_from = nyha_6m, values_from = value)
+
+
+complete_cts <-
+  smart %>%
+  dplyr::select(
+    age, bmi, lvesv_bl, bpsys, bpdia, hrrest, qrs, bun, creat, walk_test_bl
+  ) %>%
+  tidyr::pivot_longer(cols = everything()) %>% 
+  dplyr::group_by(name) %>% 
+  dplyr::summarize(
+    Missing = sum(is.na(value))
+  ) %>%
+  dplyr::filter(Missing == 0) %>%
+  dplyr::pull(name)
+
+# Drop number of observations when variable is complete
+cts_by_outcome <-
+  cts_by_outcome %>%
+  dplyr::filter(name != "N" | !variable %in% complete_cts)
+
+
+table_2 <-
+  dplyr::bind_rows(
+    cts_by_outcome %>%
+      dplyr::rename(
+        Variable = variable,
+        Summary = name
+      ),
+    cat_by_outcome %>%
+      tidyr::unite(
+        col = name,
+        name, value, sep = " - "
+      ) %>%
+      dplyr::mutate(
+        Summary = "N"
+      ) %>%
+      dplyr::rename(
+        Variable = name,
+      )
+  ) %>%
+  dplyr::mutate(
+    Variable =
+      case_when(
+        Variable == "ace - Present" ~ "Uses ACE Inhibitors",
+        Variable == "age" ~ "Age (y)",
+        Variable == "arbs - Present" ~ "Uses ARBs",
+        Variable == "bb - Present" ~ "Uses $\\beta$Bs",
+        Variable == "bmi" ~ "BMI (kg/m^2)",
+        Variable == "bpsys" ~ "SBP (mm Hg)",
+        Variable == "bpdia" ~ "DBP (mm Hg)",
+        Variable == "bun" ~ "BUN (mg/dL)",
+        Variable == "cabg - (Missing)" ~ "Hx CABG (Missing)",
+        Variable == "cabg - Present" ~ "Hx CABG",
+        Variable == "ccb - Present" ~ "Uses CCBs",
+        Variable == "copd - Present" ~ "Hx COPD",
+        Variable == "creat" ~ "Creatinine (mg/dL)",
+        Variable == "diabetes - Present" ~ "Hx Diabetes",
+        Variable == "digoxin - Present" ~ "Uses Digoxin",
+        Variable == "diuretic - Present" ~ "Uses Diuretics",
+        Variable == "heart_valve - Present" ~ "Hx Valve Replacement",
+        Variable == "hrrest" ~ "Resting HR (beats/min)",
+        Variable == "ischemic - (Missing)" ~ "Origin (Missing)",
+        Variable == "ischemic - Ischemic" ~ "Ischemic Origin",
+        Variable == "ischemic - Non-Ischemic" ~ "Non-Ischemic Origin",
+        Variable == "lbbb - Present" ~ "LBBB Present",
+        Variable == "lvesv_bl" ~ "LVESV (mL)",
+        Variable == "nyha_bl - (Missing)" ~ "BL NYHA (Missing)",
+        Variable == "nyha_bl - Class I" ~ "BL NYHA I",
+        Variable == "nyha_bl - Class II" ~ "BL NYHA II",
+        Variable == "nyha_bl - Class III" ~ "BL NYHA III",
+        Variable == "nyha_bl - Class IV" ~ "BL NYHA IV",
+        Variable == "paf - Present" ~ "Hx PAF",
+        Variable == "pulm_hypert - Present" ~ "Pulmonary HTN",
+        Variable == "qrs" ~ "QRS Duration (ms)",
+        Variable == "renal - Present" ~ "Hx Renal Disease",
+        Variable == "sex - Female" ~ "Sex - Female",
+        Variable == "sex - Male" ~ "Sex - Male",
+        Variable == "spiro - Present" ~ "Uses Spironolactone",
+        Variable == "sys_hypert - Present" ~ "Systemic HTN",
+        
+        Variable == "treatment - Algorithm" ~ "Arm: Algorithm",
+        Variable == "treatment - Echo" ~ "Arm: Echo",
+        Variable == "treatment - Fixed" ~ "Arm: Fixed",
+        
+        Variable == "walk_test_bl" ~ "6m Walk Distance (m)"
+      )
+  ) %>%
+  dplyr::mutate(
+    Variable =
+      factor(
+        x = Variable,
+        levels = c(
+          "Arm: Algorithm",
+          "Arm: Echo",
+          "Arm: Fixed",
+        
+          "Age (y)",
+          "Sex - Female",
+          "Sex - Male",
+          "BMI (kg/m^2)",
+          
+          "SBP (mm Hg)",
+          "DBP (mm Hg)",
+          "Systemic HTN",
+          "Pulmonary HTN",
+          "Resting HR (beats/min)",
+          "LBBB Present",
+          "Ischemic Origin",
+          "Non-Ischemic Origin",
+          "Origin (Missing)",
+          
+          "Hx PAF",
+          "Hx Diabetes",
+          "Hx Renal Disease",
+          "Hx COPD",
+          "Hx CABG",
+          "Hx CABG (Missing)",
+          "Hx Valve Replacement",
+
+          "BL NYHA (Missing)",
+          "BL NYHA I",
+          "BL NYHA II",
+          "BL NYHA III",
+          "BL NYHA IV",
+
+          "LVESV (mL)",
+          "LVEF (%)",
+          "QRS Duration (ms)",
+          "6m Walk Distance (m)",
+          
+          # Medications at Baseline
+          "Uses ACE Inhibitors",
+          "Uses ARBs",
+          "Uses Diuretics",
+          "Uses CCBs",
+          "Uses $\\beta$Bs",
+          "Uses Spironolactone",
+          "Uses Digoxin",
+          # Laboratory Markers
+          "BUN (mg/dL)",
+          "Creatinine (mg/dL)")
+      )
+  ) %>%
+  dplyr::arrange(Variable)
+
+
+kable(x = table_2,
+      caption =
+        paste0("Baseline characteristics by 6-month outcome (NYHA Class). ",
+               "Note: the number of observations is suppressed for numeric ",
+               "variables with no missing data. Frequencies are tabulated ",
+               "out of the total number of participants. Missing values for ",
+               "categorical variables are indicated by '(Missing)`."))
+```
+
+
+
+
+
+
 
 # Appendix
 
 ## Abbreviations
 
   - Medical
-    - `AV`: Atrio-ventricular
-    - `CRT`: Cardiac Resynchronization Therapy
-    - `HF`: Heart Failure
-    - `NYHA`: New York Heart Association
+    - AV: Atrioventricular
+    - CRT: Cardiac Resynchronization Therapy
+    - HF: Heart Failure
+    - LV: Left Ventricular
+    - NYHA: New York Heart Association
   - Statistical
-    - `DIM`: Difference in Means
-    - `DR`: Doubly Robust
-    - `IID`: Independent and Identically Distributed
-    - `ITT`: Intention to Treat
-    - `LOR`: Log Odds Ratio
-    - `MW`: Mann-Whitney
+    - DIM: Difference in Means
+    - DR: Doubly Robust
+    - IID: Independent and Identically Distributed
+    - ITT: Intention to Treat
+    - LOR: Log Odds Ratio
+    - MW: Mann-Whitney
 
 ## Software in Use
 
@@ -199,3 +1488,4 @@ sessionInfo()
   - [R for Data Science](https://r4ds.had.co.nz/)
   - [R Project: An Introduction to R](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
   
+## References
