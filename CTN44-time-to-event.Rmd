@@ -1,0 +1,204 @@
+---
+title: "A Tutorial for Covariate Adjustment for Time-to-event Outcomes in Clinical Trials"
+author: ''
+date: "`r format(Sys.time(), '%Y-%m-%d %I:%M')`"
+output:
+  html_document:
+    toc: true # table of content true
+    # toc_depth: 3
+    number_sections: true
+    theme: united
+    highlight: tango
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This tutorial introduces how to perform covariate-adjusted analysis for ordinal outcomes in randomized clinical trials. 
+
+In the second section, we provide an example data.
+
+In Section 3, we give a few estimands for time-to-event outcomes.
+
+In Section 4, we introduce how to perform covariate-adjusted analysis using `R` package `survrct` available at https://github.com/nt-williams/survrct.
+
+Before we start, we load the following packages.
+
+```{r, message=F}
+library(tidyverse) # for data cleaning and manipulation
+if (!require("survrct")) devtools::install_github("nt-williams/survrct") # for covariate-adjusted analysis for time-to-event outcomes
+```
+
+# Example data
+
+The  phase-3  randomized trial ``Internet-delivered treatment for substance abuse'' (NIDA-CTN-0044) was completed in 2012 \citep{CTN44}. The goal was to evaluate the effectiveness of a web-delivered behavioral intervention, Therapeutic Education
+System (TES), in the treatment of substance abuse. Participants were randomly assigned to two arms: treatment as usual (control, 252 participants) and treatment as usual plus TES (treatment, 255 participants).
+After randomization, each participant was followed for 12 weeks with 2 urine laboratory tests per week. 
+
+The outcome of interest is time to abstinence, defined as the time to first two consecutive negative urine tests during the study. Censoring time is defined as the first missing visit. We used the data from the first 6 weeks of follow-up in our data analysis of this  time-to-event outcome, during which 99\% of the events occurred.
+
+We adjust for the following baseline variables: age, sex, patient's primary substance of abuse (stimulant or non-stimulant), abstinence status at baseline and urine laboratory result. 
+
+_Note: The above description is reproduced from [@wang2019analysis]. The data for this example are not publicly available, but they can be requested from the NIDA databases at https://datashare.nida.nih.gov. _
+
+```{r, eval=F}
+CTN44 <- readRDS("data/CTN44.rds") %>% filter(T <= 12)
+head(CTN44)
+```
+
+```{r, echo = F}
+setwd("~/Dropbox/JHU/clinical-trial/covariate-adaptive/Covariate-adaptive/")
+CTN44 <- readRDS("data/CTN44.rds")
+CTN44$strata <- as.factor(CTN44$strata)
+CTN44$gender <- as.numeric(CTN44$gender == "Female")
+CTN44$`0`[which(is.na(CTN44$`0`))] <- TRUE
+event_table <- matrix(NA, nrow = nrow(CTN44), ncol = 23)
+for(j in 1:23){
+  temp_event <- CTN44[,6+j] + CTN44[7+j]
+  event_table[,j] <- ifelse(!is.na(temp_event) & temp_event == 0, 1, 0)
+}
+Y <- apply(event_table, 1, function(x){which(x == 1)[1]})
+Y[is.na(Y)] <- 999
+M <- apply(CTN44[,7:30], 1, function(x){which(is.na(x))[1]})
+M[is.na(M)] <- 999
+Time <- pmin(Y, M)
+Status <- Y <= M
+A <- as.numeric(CTN44$arm == "Therapeutic Education System (TES)")
+X <- CTN44[,3:6]
+CTN44 <- cbind(Time, Status, A, X) %>% filter(Time <= 12)
+CTN44 <- mutate(CTN44, id = 1:nrow(CTN44))
+head(CTN44)
+```
+
+In the data frame `CTN44`,
+
+  - the event time is `Time`: an integer ranging from 1 to 12.
+  
+  - the censoring indicator is `Status`: a binary indicator of non-missingness.
+  
+  - the treatment variable is `A`: a binary indicator of being assigned to the treatment group.
+  
+  - The baseline variables are `age`, `gender` (1 for female), `strata` (categorical) and `0` (baseline score).
+  
+  - The subject id number `id`.
+
+We define the restriction time as $\tau = 12$, i.e. 6 weeks, which is the maximum time of interest.
+
+# Estimands
+
+We consider three estimands, which are Difference in restricted mean survival times (RMSTs), Risk difference (RD)  at time $t^*$ and Relative risk (RR)  at time $t^*$. Let $T$ denote time-to-event outcome and $A$ be the binary treatment indicator.
+
+- Difference in restricted mean survival times (RMSTs): $E[\min\{T,\tau\}|A=1] - E[\min\{T,\tau\}|A=0]$, which is the expected survival time truncated at time $\tau$.
+
+- Risk difference (RD) at time $t^*$: $P(T\le t^*|A=1) - P(T\le t^*|A=0)$.
+
+- Relative risk (RR)  at time $t^*$: $P(T\le t^*|A=1)/P(T\le t^*|A=0)$.
+
+For a detailed explanation of the three estimands, please see Section 3.3 of [@benkeser2020].
+
+# Covariate-adjusted Estimators
+
+For each of the three estimand, we introduce 3 estimators, which are summarized as follows.
+
+- __The unadjusted estimator__, which is based on the Kaplan-Meier estimator of the survival function and does not involve baseline variables. This estimator is typically not efficient and may be biased if censoring is not completely at random.
+
+- __The augmented inverse probability weighted (AIPW) estimator__, which involves fitting propensity scores for censoring and for treatment, and fitting a model for the hazard function. 
+Compared with the unadjusted estimator, the AIPW estimator uses covariates to improve precision and is doubly-robust  under informative censoring, i.e. consistent as long as the propensity scores or the model for the hazard function is correctly specified. 
+However, this double robustness comes at a price, the AIPW estimator may not be as precise as the unadjusted estimator under model misspecification.
+
+- __The targeted maximum likelihood estimator (TMLE)__, which is a more recent and advanced estimators compared to the other two estimators. It is computed by a complex algorithm involving multiple regression models for treatment, censoring and hazard. It is also doubly-robust, and guaranteed to outperform the IPW estimator under certain scenarios.s
+
+We omit the technical details for these 3 estimators and refer readers to [@diaz2019improved] for a complete description. Below we demonstrate how to compute them in the `R` software using `R` package `survrct`. 
+
+<!-- We note that this implemation requries some prelimiary steps, which are noted as comments in the code chunck below. In addition, this package does not give standard error estimation for the RR estimand. One option to perform inference on the RR estimand is using bootstrap with the `survtmlerct` package to get the emperical distribution of the point estimate. -->
+
+Below is an example of estimating RMST. for a different data set, one just need to change $\tau$ and the options in the `survrct` function. 
+
+```{r}
+methods = c("km", "aipw", "tmle")
+tau <- 12
+rmst_result <- map(methods, function(method){
+  surv <- survrct(Surv(Time, Status) ~ A + age + gender + strata + `0`,
+                target = "A", data = CTN44, coarsen = 1, estimator = method)
+  out <- rmst(surv, tau)
+  c(out$estimates[[1]]$theta, out$estimates[[1]]$std.error, out$estimates[[1]]$theta.conf.low, out$estimates[[1]]$theta.conf.high)
+}) %>% do.call(rbind, .)
+rownames(rmst_result) <- methods
+colnames(rmst_result) <- c("Est", "sd", "CI.lower", "CI.higher")
+cbind(rmst_result, prop.var.reduction = 1 - rmst_result[,2]/rmst_result[1,2]) %>%
+  round(2)
+```
+
+Below is an example of estimating the RD at the visit 12, which is similar to estimating RMST.
+
+```{r}
+methods = c("km", "aipw", "tmle")
+tau <- 12
+rd_result <- map(methods, function(method){
+  surv <- survrct(Surv(Time, Status) ~ A + age + gender + strata + `0`,
+                target = "A", data = CTN44, coarsen = 1, estimator = method)
+  out <- survprob(surv, tau)
+  c(out$estimates[[1]]$theta, out$estimates[[1]]$std.error, out$estimates[[1]]$theta.conf.low, out$estimates[[1]]$theta.conf.high)
+}) %>% do.call(rbind, .)
+rownames(rd_result) <- methods
+colnames(rd_result) <- c("Est", "sd", "CI.lower", "CI.higher")
+cbind(rd_result, prop.var.reduction = 1 - rd_result[,2]/rd_result[1,2]) %>%
+  round(2)
+```
+
+```{r, echo=F, eval=F}
+# transform data to long form
+CTN44_long <- transformData(CTN44, 1)
+tau <- 12
+
+# fit models for the outcome, censoring, and treatment 
+fitL <- glm(Lm ~ A * (m + D + age + X0),
+            data = CTN44_long, subset = Im == 1, family = binomial())
+            
+# in order to obtain efficiency guarantees compared to unadjusted estimators, time must be a factor in the censoring model:
+fitR <- glm(Rm ~ A * (as.factor(m) + D + age + X0),
+            data = CTN44_long, subset = Jm == 1, family = binomial())
+fitA <- glm(A ~ D + age + strata + X0,
+            data = CTN44_long, subset = m == 1, family = binomial())
+
+# add preliminary estimates to the data
+CTN44_long <- mutate(CTN44_long,
+                gR1 = bound01(predict(fitR, newdata = mutate(CTN44_long, A = 1), type = 'response')),
+                gR0 = bound01(predict(fitR, newdata = mutate(CTN44_long, A = 0), type = 'response')),
+                h1  = bound01(predict(fitL, newdata = mutate(CTN44_long, A = 1), type = 'response')),
+                h0  = bound01(predict(fitL, newdata = mutate(CTN44_long, A = 0), type = 'response')),
+                gA1 = bound01(predict(fitA, newdata = mutate(CTN44_long, A = 1), type = 'response')))
+
+rmst_unadjusted <- unadjusted_rmst(CTN44_long, tau)
+rmst_aipw <- aipw_rmst(CTN44_long, tau)
+rmst_tmle <- tmle_rmst(CTN44_long, tau)
+RMST_table <- matrix(NA, nrow = 3, ncol = 5, dimnames = list(c("unadjusted", "aipw", "tmle"), c("est", "var", "CI.lower", "CI.upper", "var_reduction")))
+RMST_table[1,1:2] <- c(rmst_unadjusted$rmst[2]-rmst_unadjusted$rmst[1], rmst_unadjusted$std.error.diff^2)
+RMST_table[2,1:2] <- c(rmst_aipw$rmst[2]-rmst_aipw$rmst[1], rmst_aipw$std.error.diff^2)
+RMST_table[3,1:2] <- c(rmst_tmle$rmst[2]-rmst_tmle$rmst[1], rmst_tmle$std.error.diff^2)
+RMST_table[,3] <- map2_dbl(RMST_table[,1], RMST_table[,2], ~ qnorm(0.025, .x, sqrt(.y)))
+RMST_table[,4] <- map2_dbl(RMST_table[,1], RMST_table[,2], ~ qnorm(0.975, .x, sqrt(.y)))
+RMST_table[,5] <- 1 - RMST_table[,2]/RMST_table[1,2]
+print("Summary results for the RMST esitmand")
+round(RMST_table,3)
+
+prob_unadjusted <- unadjusted_prob(CTN44_long, tau)
+prob_aipw <- aipw_prob(CTN44_long, tau)
+prob_tmle <- tmle_prob(CTN44_long, tau)
+PROB_table <- matrix(NA, nrow = 3, ncol = 5, dimnames = list(c("unadjusted", "aipw", "tmle"), c("est", "var", "CI.lower", "CI.upper", "var_reduction")))
+PROB_table[1,1:2] <- c(prob_unadjusted$prob[2]-prob_unadjusted$prob[1], prob_unadjusted$std.error.diff^2)
+PROB_table[2,1:2] <- c(prob_aipw$prob[2]-prob_aipw$prob[1], prob_aipw$std.error.diff^2)
+PROB_table[3,1:2] <- c(prob_tmle$prob[2]-prob_tmle$prob[1], prob_tmle$std.error.diff^2)
+PROB_table[,3] <- map2_dbl(PROB_table[,1], PROB_table[,2], ~ qnorm(0.025, .x, sqrt(.y)))
+PROB_table[,4] <- map2_dbl(PROB_table[,1], PROB_table[,2], ~ qnorm(0.975, .x, sqrt(.y)))
+PROB_table[,5] <- 1 - PROB_table[,2]/PROB_table[1,2]
+print("Summary results for the RD esitmand")
+round(PROB_table,3)
+```
+
+
+# References
