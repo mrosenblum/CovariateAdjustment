@@ -53,8 +53,17 @@ head(tad)
 ```{r, echo = F}
 load("~/Dropbox/JHU/Clinical-trial/github_code/CovariateAdjustment/Data_Preprocessing_and_Analysis/TADS.rdata")
 tad <- tad[,-c(6,14,15)]
-head(tad)
+random_head <- function(data){
+  dd <- data[sample(1:nrow(data), 6),]
+  rownames(dd) <- NULL
+  for(j in 2:ncol(data)){
+    dd[,j] <- data[sample(1:nrow(data), 6),j]
+  }
+  dd
+}
+random_head(tad)
 ```
+_Note: the example data shown by the `head` command are randomly permuted and do not represent the true patient data._
 
 In the data frame `tad`, the outcome is 
 

@@ -50,8 +50,18 @@ head(CTN03)
 ```{r, echo=F}
 setwd("~/Dropbox/JHU/clinical-trial/covariate-adaptive/Covariate-adaptive/")
 CTN03 <- readRDS("data/CTN03.rds")[,c(4,2,5,3,6,7,8,9)]
-head(CTN03)
+random_head <- function(data){
+  dd <- data[sample(1:nrow(data), 6),]
+  rownames(dd) <- NULL
+  for(j in 2:ncol(data)){
+    dd[,j] <- data[sample(1:nrow(data), 6),j]
+  }
+  dd
+}
+random_head(CTN03)
 ```
+
+_Note: the example data shown by the `head` command are randomly permuted and do not represent the true patient data._
 
 In the data frame `CTN03`, the outcome is 
 

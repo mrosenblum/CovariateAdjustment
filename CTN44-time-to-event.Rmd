@@ -71,8 +71,18 @@ A <- as.numeric(CTN44$arm == "Therapeutic Education System (TES)")
 X <- CTN44[,3:6]
 CTN44 <- cbind(Time, Status, A, X) %>% filter(Time <= 12)
 CTN44 <- mutate(CTN44, id = 1:nrow(CTN44))
-head(CTN44)
+random_head <- function(data){
+  dd <- data[sample(1:nrow(data), 6),]
+  rownames(dd) <- NULL
+  for(j in 2:ncol(data)){
+    dd[,j] <- data[sample(1:nrow(data), 6),j]
+  }
+  dd
+}
+random_head(CTN44)
 ```
+
+_Note: the example data shown by the `head` command are randomly permuted and do not represent the true patient data._
 
 In the data frame `CTN44`,
 

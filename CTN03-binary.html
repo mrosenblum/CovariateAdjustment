@@ -225,7 +225,7 @@ summary {
 
 
 <h1 class="title toc-ignore">A Tutorial for Covariate Adjustment for Binary Outcomes in Clinical Trials</h1>
-<h4 class="date">2021-02-28 06:27</h4>
+<h4 class="date">2021-03-10 10:44</h4>
 
 </div>
 
@@ -273,12 +273,13 @@ summary {
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">CTN03 &lt;-<span class="st"> </span><span class="kw">readRDS</span>(<span class="st">&quot;data/CTN03.rds&quot;</span>)
 <span class="kw">head</span>(CTN03)</code></pre></div>
 <pre><code>##   outcome.OPI          arm baseline.OPI    sex COWS ARSW VAS strata
-## 1           0  7-day taper            0   Male    0    0   0     16
-## 2          NA 28-day taper            0 Female    1    0   0     24
-## 3           1 28-day taper            1 Female    2    9  32     24
-## 4           1  7-day taper            0 Female    0    7   7     24
-## 5           1  7-day taper            1   Male    0   49  52     24
-## 6           1 28-day taper            0 Female    5   NA  12     16</code></pre>
+## 1           1 28-day taper            0   Male    0   11   2     24
+## 2          NA 28-day taper            1   Male    1   13  27     24
+## 3           0  7-day taper            1   Male    0    0   2     24
+## 4          NA 28-day taper            0   Male    3   10   4     16
+## 5           1  7-day taper            0 Female    1   19  11     16
+## 6           0 28-day taper            0   Male    0    4   0     16</code></pre>
+<p><em>Note: the example data shown by the <code>head</code> command are randomly permuted and do not represent the true patient data.</em></p>
 <p>In the data frame <code>CTN03</code>, the outcome is</p>
 <ul>
 <li><code>outcome.OPI</code>: a binary indicator of whether a participant’s urine tested at the end of the study is opioid-free.</li>
@@ -368,9 +369,9 @@ output_logistic[,<span class="dv">2</span>] &lt;-<span class="st"> </span><span 
 <span class="cf">for</span>(j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>){output_logistic[j, <span class="dv">3</span><span class="op">:</span><span class="dv">4</span>] &lt;-<span class="st"> </span><span class="kw">boot.ci</span>(boot_logistic, <span class="dt">type =</span> <span class="st">&quot;bca&quot;</span>, <span class="dt">index =</span> j)<span class="op">$</span>bca[<span class="dv">4</span><span class="op">:</span><span class="dv">5</span>]}
 <span class="kw">round</span>(output_logistic, <span class="dv">3</span>)</code></pre></div>
 <pre><code>##                 est   var CI.lower CI.upper
-## ATE_logistic -0.103 0.002   -0.188   -0.024
-## RR_logistic   0.782 0.006    0.641    0.945
-## OR_logistic   0.654 0.013    0.459    0.907</code></pre>
+## ATE_logistic -0.103 0.002   -0.181   -0.017
+## RR_logistic   0.782 0.006    0.652    0.964
+## OR_logistic   0.654 0.014    0.474    0.937</code></pre>
 <p>To evaluate the variance reduction due to covariate adjustment, we also calculate the unadjusted estimators, i.e. estimators not involving baseline information and give its estimate and confidence intervals. The variance reduction is calculated by one minus the variance ratio of the standardized logistic regression estimator over the unadjusted estimator, which can be translated into proportional sample size reduciton.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">unadjusted &lt;-<span class="st"> </span><span class="cf">function</span>(d, i){
   dd &lt;-<span class="st"> </span>d[i,]
@@ -386,16 +387,16 @@ output_unadjusted[,<span class="dv">2</span>] &lt;-<span class="st"> </span><spa
 <span class="cf">for</span>(j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>){output_unadjusted[j, <span class="dv">3</span><span class="op">:</span><span class="dv">4</span>] &lt;-<span class="st"> </span><span class="kw">boot.ci</span>(boot_unadjusted, <span class="dt">type =</span> <span class="st">&quot;bca&quot;</span>, <span class="dt">index =</span> j)<span class="op">$</span>bca[<span class="dv">4</span><span class="op">:</span><span class="dv">5</span>]}
 <span class="kw">round</span>(output_unadjusted, <span class="dv">3</span>)</code></pre></div>
 <pre><code>##                   est   var CI.lower CI.upper
-## ATE_unadjusted -0.104 0.003   -0.205    0.000
-## RR_unadjusted   0.781 0.010    0.608    0.993
-## OR_unadjusted   0.652 0.022    0.422    1.003</code></pre>
+## ATE_unadjusted -0.104 0.003   -0.202   -0.001
+## RR_unadjusted   0.781 0.009    0.621    1.000
+## OR_unadjusted   0.652 0.020    0.431    0.998</code></pre>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">var_reduction &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="ot">NA</span>, <span class="dt">ncol =</span> <span class="dv">1</span>, <span class="dt">nrow =</span> <span class="dv">3</span>, <span class="dt">dimnames =</span> <span class="kw">list</span>(<span class="kw">c</span>(<span class="st">&quot;ATE&quot;</span>, <span class="st">&quot;RR&quot;</span>, <span class="st">&quot;OR&quot;</span>), <span class="kw">c</span>(<span class="st">&quot;Var_reduction&quot;</span>)))
 var_reduction[,<span class="dv">1</span>] &lt;-<span class="st"> </span><span class="dv">1</span> <span class="op">-</span><span class="st"> </span>output_logistic[,<span class="dv">2</span>]<span class="op">/</span>output_unadjusted[,<span class="dv">2</span>]
 var_reduction</code></pre></div>
 <pre><code>##     Var_reduction
-## ATE     0.3454099
-## RR      0.3768314
-## OR      0.3729680</code></pre>
+## ATE     0.3062105
+## RR      0.3177125
+## OR      0.3174136</code></pre>
 </div>
 <div id="inference-under-stratified-or-biased-coin-randomization" class="section level3">
 <h3><span class="header-section-number">4.1.3</span> Inference under stratified or biased-coin randomization</h3>
@@ -457,16 +458,16 @@ output[,<span class="dv">2</span>] &lt;-<span class="st"> </span><span class="kw
 <span class="cf">for</span>(j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="dv">3</span>){output[j, <span class="dv">3</span><span class="op">:</span><span class="dv">4</span>] &lt;-<span class="st"> </span><span class="kw">boot.ci</span>(boot_drwls, <span class="dt">type =</span> <span class="st">&quot;bca&quot;</span>, <span class="dt">index =</span> j)<span class="op">$</span>bca[<span class="dv">4</span><span class="op">:</span><span class="dv">5</span>]}
 <span class="kw">round</span>(output, <span class="dv">3</span>)</code></pre></div>
 <pre><code>##              est   var CI.lower CI.upper
-## ATE_drwls -0.099 0.002   -0.187   -0.020
-## RR_drwls   0.790 0.006    0.642    0.955
-## OR_drwls   0.665 0.014    0.462    0.922</code></pre>
+## ATE_drwls -0.099 0.002   -0.181   -0.017
+## RR_drwls   0.790 0.006    0.648    0.960
+## OR_drwls   0.665 0.014    0.474    0.932</code></pre>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">var_reduction &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="ot">NA</span>, <span class="dt">ncol =</span> <span class="dv">1</span>, <span class="dt">nrow =</span> <span class="dv">3</span>, <span class="dt">dimnames =</span> <span class="kw">list</span>(<span class="kw">c</span>(<span class="st">&quot;ATE&quot;</span>, <span class="st">&quot;RR&quot;</span>, <span class="st">&quot;OR&quot;</span>), <span class="kw">c</span>(<span class="st">&quot;Var_reduction&quot;</span>)))
 var_reduction[,<span class="dv">1</span>] &lt;-<span class="st"> </span><span class="dv">1</span> <span class="op">-</span><span class="st"> </span>output[,<span class="dv">2</span>]<span class="op">/</span>output_unadjusted[,<span class="dv">2</span>]
 var_reduction</code></pre></div>
 <pre><code>##     Var_reduction
-## ATE     0.3482787
-## RR      0.3645637
-## OR      0.3585397</code></pre>
+## ATE     0.3257946
+## RR      0.3201577
+## OR      0.3179625</code></pre>
 </div>
 <div id="inference-under-stratified-or-biased-coin-randomization-1" class="section level3">
 <h3><span class="header-section-number">4.2.3</span> Inference under stratified or biased-coin randomization</h3>
